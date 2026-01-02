@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.routes import health_router, research_router
 from src.config import settings
 from src.utils.logger import setup_logger
 
@@ -20,15 +21,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router)
+app.include_router(research_router)
+
 
 @app.get("/")
 async def root():
     return {"message": "Agree to Disagree API", "status": "running"}
-
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "environment": settings.environment}
 
 
 if __name__ == "__main__":
