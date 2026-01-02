@@ -1,4 +1,5 @@
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.nodes import clarification_node, research_node
 from src.agents.nodes.synthesis import synthesis_node
@@ -18,7 +19,7 @@ def _should_continue_after_clarification(state: AgentState) -> str:
     return "research"
 
 
-def build_research_graph() -> StateGraph:
+def build_research_graph() -> CompiledStateGraph:
     builder = StateGraph(AgentState)
 
     builder.add_node("clarification", clarification_node)

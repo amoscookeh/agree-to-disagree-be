@@ -145,7 +145,8 @@ async def synthesis_node(state: AgentState) -> dict:
 
     try:
         structured_llm = llm.with_structured_output(SynthesisReport)
-        report: SynthesisReport = await structured_llm.ainvoke(prompt)
+        result = await structured_llm.ainvoke(prompt)
+        report = SynthesisReport.model_validate(result)
         citations = _extract_citations(report)
 
         logger.info(
