@@ -1,190 +1,131 @@
 # Agree to Disagree - Backend
 
-Backend API for the Agree to Disagree political research platform.
+Backend API for balanced political research. Searches multiple news sources across the political spectrum, synthesizes perspectives using LLMs, and returns cited reports via streaming API.
 
-## Tech Stack
-
-- **FastAPI**: Modern async web framework
-- **LangGraph**: Agent orchestration and workflow management
-- **LangChain**: LLM integration and tooling
-- **Supabase**: Database and authentication
-- **OpenRouter**: LLM API gateway
-- **UV**: Fast Python package manager
-
-## Setup
-
-### Prerequisites
-
-- Python 3.11+
-- UV package manager
-- Supabase account
-- OpenRouter API key
-
-### Installation
+## Quick Start
 
 ```bash
-# navigate to backend directory
-cd agree-to-disagree-be
-
-# install dependencies
-uv sync
-
-# create .env file and add your API keys
-cp .env.example .env
-# edit .env with your actual keys
-```
-
-### Environment Variables
-
-See `.env.example` for the template.
-
-## Development
-
-### Quick Start with Dev Script
-
-The `scripts/dev.sh` helper provides common commands:
-
-```bash
-# test api connections
-./scripts/dev.sh test-connections
-
-# start development server
+# start the server
 ./scripts/dev.sh start
 
-# run tests
-./scripts/dev.sh test
-
-# check code quality
-./scripts/dev.sh check-all
+# test a query
+curl -N -X POST http://localhost:8000/api/research \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are perspectives on immigration policy?"}'
 ```
 
-See all available commands:
+API docs: `http://localhost:8000/docs`
+
+## Installation
 
 ```bash
-./scripts/dev.sh
+cd agree-to-disagree-be
+uv sync
+cp .env.example .env
+# add your API keys to .env
 ```
 
-### Setup Database
+**Requirements:** Python 3.11+, UV package manager, OpenRouter API key, Supabase account
 
-Create database tables (see `DATABASE_SETUP.md` for options):
+## Usage
+
+### Development Server
 
 ```bash
-# Option 1: Use Supabase SQL Editor (recommended)
-# Copy scripts/schema.sql into Supabase SQL Editor
+./scripts/dev.sh start              # start server
+./scripts/dev.sh test               # run tests
+./scripts/dev.sh test-connections   # verify API keys
+./scripts/dev.sh check-all          # lint + type check
+```
 
-# Option 2: Manual connection
+### Testing
+
+```bash
+uv run pytest                       # all tests
+uv run pytest --cov=src            # with coverage
+uv run pytest tests/unit/test_llm.py -v  # specific file
+```
+
+### Database Setup
+
+Copy `scripts/schema.sql` into Supabase SQL Editor (recommended) or run:
+
+```bash
 uv run python scripts/test_connections.py
 ```
 
-The API will be available at `http://localhost:8000`
+## Features
 
-API documentation: `http://localhost:8000/docs`
+- **Multi-source research**: Searches left/right/academic sources in parallel
+- **LLM synthesis**: Generates balanced reports with GPT-4 via OpenRouter
+- **Streaming API**: Server-sent events for real-time progress updates
+- **Citation tracking**: Every claim linked to source with confidence scores
+- **Agent workflow**: LangGraph orchestrates clarification → research → synthesis → quality check
 
-### Run Tests
+## Configuration
 
-```bash
-# run all tests
-uv run pytest
-
-# run with coverage
-uv run pytest --cov=src --cov-report=html
-
-# run specific test file
-uv run pytest tests/unit/test_agents.py
-
-# run with verbose output
-uv run pytest -v -s
-```
-
-### Linting & Formatting
+Environment variables (see `.env.example`):
 
 ```bash
-# run ruff linter
-uv run ruff check .
-
-# fix auto-fixable issues
-uv run ruff check --fix .
-
-# format code
-uv run ruff format .
-
-# type checking
-uv run mypy src
+OPENROUTER_API_KEY=sk-or-xxx        # required
+SUPABASE_URL=https://xxx.supabase.co  # required
+SUPABASE_KEY=xxx                     # required
+GUARDIAN_API_KEY=xxx                 # optional
+NYT_API_KEY=xxx                      # optional
+NEWSAPI_KEY=xxx                      # optional
 ```
 
-## Project Structure
-
-```
-agree-to-disagree-be/
-├── src/
-│   ├── api/
-│   │   ├── routes/          # api endpoints
-│   │   └── schemas.py       # pydantic models for api
-│   ├── agents/
-│   │   ├── nodes/           # langgraph agent nodes
-│   │   ├── graph.py         # agent workflow definition
-│   │   └── state.py         # agent state management
-│   ├── data_sources/
-│   │   ├── left_leaning/    # left-leaning news sources
-│   │   ├── right_leaning/   # right-leaning news sources
-│   │   ├── academic/        # academic sources
-│   │   ├── base.py          # base data source class
-│   │   └── registry.py      # data source registry
-│   ├── llm/
-│   │   ├── client.py        # llm client wrapper
-│   │   └── prompts.py       # prompt templates
-│   ├── db/
-│   │   ├── client.py        # database client
-│   │   └── models.py        # database models
-│   ├── utils/
-│   │   ├── logger.py        # logging setup
-│   │   └── validators.py    # input validation
-│   ├── config.py            # configuration management
-│   └── main.py              # fastapi app entry point
-├── tests/
-│   ├── unit/                # unit tests
-│   ├── integration/         # integration tests
-│   └── conftest.py          # pytest fixtures
-├── scripts/                 # utility scripts
-├── .env                     # environment variables (not in git)
-├── pyproject.toml           # project dependencies
-└── README.md
-```
-
-## API Endpoints
-
-### Health Check
-
-```bash
-GET /health
-```
-
-Returns API health status.
-
-### Research (Coming Soon)
-
-```bash
-POST /api/research
-Content-Type: application/json
-
-{
-  "query": "What are the different perspectives on climate change policy?"
-}
-```
-
-Initiates a research workflow and returns a balanced report.
+**Defaults:**
+- Model: `x-ai/grok-2-1212` (fast, non-reasoning)
+- Temperature: 0.7
+- Citation threshold: 80% of claims must be cited
 
 ## Architecture
 
 ### Agent Workflow
 
-1. **Clarification**: Validates and refines user query
-2. **Research**: Gathers data from multiple sources in parallel
-3. **Synthesis**: Generates balanced report with LLM
-4. **Quality Check**: Validates citations and bias balance
+1. **Clarification**: Validates query is US politics, refines phrasing
+2. **Research**: Parallel search across left/right/academic sources
+3. **Synthesis**: LLM generates balanced report with citations
+4. **Quality Check**: Validates citation coverage (>80% threshold)
 
 ### Data Sources
 
-- **Left-leaning**: Guardian, NYT, Vox, HuffPost
-- **Right-leaning**: NY Post, Breitbart, Daily Wire
-- **Academic**: Semantic Scholar, Census Bureau
+- **Left**: Guardian, NYT
+- **Right**: NY Post, Fox News (via NewsAPI)
+- **Academic**: Semantic Scholar, Census (planned)
+
+### Tech Stack
+
+- **FastAPI**: Async web framework
+- **LangGraph**: Agent orchestration
+- **LangChain**: LLM integration (ChatOpenAI)
+- **OpenRouter**: LLM API gateway (Grok, GPT-4, Claude, etc.)
+- **Supabase**: PostgreSQL database
+- **UV**: Python package manager
+
+## Project Status
+
+**Status:** MVP in development
+
+**Stability:** Experimental - API may change
+
+**Supported:** Python 3.11+, tested on macOS/Linux
+
+**Known limitations:**
+- US politics only
+- English language only
+- Rate limits depend on API keys (Guardian: 500/day, NYT: 500/day)
+- No conversation memory yet (planned)
+
+## Contributing
+
+Run tests and linting before submitting:
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run mypy src
+```
+
+See `.cursor/docs/tdd.md` for architecture details.

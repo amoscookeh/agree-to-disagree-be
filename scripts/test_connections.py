@@ -7,9 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.agents.llm import llm
 from src.config import settings
 from src.db.client import get_supabase
-from src.llm.client import OpenRouterClient
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -35,20 +35,12 @@ async def test_openrouter_connection():
     """test openrouter api connection"""
     try:
         logger.info("testing openrouter connection...")
-        client = OpenRouterClient()
 
-        messages = [
-            {
-                "role": "user",
-                "content": "Say 'connection test successful' in exactly 3 words",
-            }
-        ]
-
-        response = await client.chat_completion(
-            messages=messages, model="openai/gpt-4o-mini", max_tokens=50
+        response = await llm.ainvoke(
+            "Say 'connection test successful' in exactly 3 words"
         )
 
-        content = response["choices"][0]["message"]["content"]
+        content = response.content
         logger.info("✓ openrouter connected successfully")
         logger.info(f"  response: {content}")
         return True
@@ -61,18 +53,10 @@ async def test_openrouter_streaming():
     """test openrouter streaming"""
     try:
         logger.info("testing openrouter streaming...")
-        client = OpenRouterClient()
-
-        messages = [{"role": "user", "content": "Count from 1 to 5"}]
 
         chunks = []
-        async for chunk in await client.chat_completion(
-            messages=messages, model="openai/gpt-4o-mini", stream=True, max_tokens=50
-        ):
-            if "choices" in chunk and len(chunk["choices"]) > 0:
-                delta = chunk["choices"][0].get("delta", {})
-                if "content" in delta:
-                    chunks.append(delta["content"])
+        async for chunk in llm.astream("Count from 1 to 5"):
+            chunks.append(chunk.content)
 
         full_response = "".join(chunks)
         logger.info("✓ openrouter streaming works")

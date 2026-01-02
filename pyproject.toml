@@ -9,6 +9,7 @@ dependencies = [
     "feedparser>=6.0.11",
     "httpx>=0.28.1",
     "langchain>=1.2.0",
+    "langchain-xai>=1.1.0",
     "langgraph>=1.0.5",
     "langgraph-checkpoint-postgres>=3.0.2",
     "psycopg2-binary>=2.9.11",
