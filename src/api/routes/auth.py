@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from jose import jwt
@@ -15,11 +16,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_token(user_id: str) -> str:
     expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expire_minutes)
-    return jwt.encode(
+    token = jwt.encode(
         {"sub": user_id, "exp": expire},
         settings.jwt_secret,
         algorithm=settings.jwt_algorithm,
     )
+    return cast(str, token)
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -44,8 +46,11 @@ async def register(data: UserCreate):
         .execute()
     )
 
-    user = result.data[0]
-    token = create_token(user["id"])
+    if not isinstance(result.data, list) or not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+    user = cast(dict[str, Any], result.data[0])
+    token = create_token(str(user["id"]))
 
     return TokenResponse(access_token=token, user=UserResponse(**user))
 
@@ -61,19 +66,19 @@ async def login(data: UserLogin):
         .execute()
     )
 
-    if not result.data:
+    if not result.data or not isinstance(result.data, dict):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user = result.data
-    if not pwd_context.verify(data.password, user["password_hash"]):
+    user = cast(dict[str, Any], result.data)
+    if not pwd_context.verify(data.password, str(user["password_hash"])):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_token(user["id"])
+    token = create_token(str(user["id"]))
     return TokenResponse(access_token=token, user=UserResponse(**user))
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(user: dict = Depends(require_auth)):
+async def me(user: dict[str, Any] = Depends(require_auth)):
     return UserResponse(**user)
 
 

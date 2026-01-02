@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -10,7 +12,7 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-) -> dict | None:
+) -> dict[str, Any] | None:
     """returns user dict if authenticated, None if not"""
     if not credentials:
         return None
@@ -29,19 +31,23 @@ async def get_current_user(
         result = (
             supabase.table("users").select("*").eq("id", user_id).single().execute()
         )
+        if not isinstance(result.data, dict):
+            return None
         return result.data
     except JWTError:
         return None
 
 
-async def require_auth(user: dict | None = Depends(get_current_user)) -> dict:
+async def require_auth(
+    user: dict[str, Any] | None = Depends(get_current_user),
+) -> dict[str, Any]:
     """raises 401 if not authenticated"""
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
 
-async def check_quota(user: dict = Depends(require_auth)) -> dict:
+async def check_quota(user: dict[str, Any] = Depends(require_auth)) -> dict[str, Any]:
     """raises 403 if quota exhausted"""
     if user["researches_used"] >= user["max_researches"]:
         raise HTTPException(status_code=403, detail="Research quota exhausted")
