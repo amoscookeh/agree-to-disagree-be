@@ -83,6 +83,43 @@ async def test_openrouter_streaming():
         return False
 
 
+async def test_data_sources():
+    """test data source connections"""
+    from src.data_sources.left_leaning.guardian import GuardianSource
+    from src.data_sources.left_leaning.nyt import NYTSource
+    from src.data_sources.right_leaning.newsapi import NewsAPISource
+    from src.data_sources.right_leaning.ny_post_rss import NYPostRSSSource
+
+    logger.info("testing data sources...")
+    results = []
+
+    sources = [
+        ("Guardian", GuardianSource(), settings.guardian_api_key),
+        ("NYT", NYTSource(), settings.nyt_api_key),
+        ("NewsAPI", NewsAPISource(), settings.newsapi_key),
+        ("NY Post RSS", NYPostRSSSource(), None),
+    ]
+
+    for name, source, api_key in sources:
+        if api_key is not None and not api_key:
+            logger.info(f"⚠️  {name}: API key not configured, skipping")
+            continue
+
+        try:
+            test_results = await source.search("test", max_results=1)
+            if test_results:
+                logger.info(f"✓ {name}: working ({len(test_results)} results)")
+                results.append((name, True))
+            else:
+                logger.warning(f"⚠️  {name}: no results (may be rate limited)")
+                results.append((name, True))
+        except Exception as e:
+            logger.error(f"✗ {name}: {e}")
+            results.append((name, False))
+
+    return results
+
+
 async def main():
     logger.info("=== connection tests ===\n")
 
@@ -96,6 +133,10 @@ async def main():
 
     # test openrouter streaming
     results.append(("openrouter streaming", await test_openrouter_streaming()))
+
+    # test data sources
+    data_source_results = await test_data_sources()
+    results.extend(data_source_results)
 
     # summary
     logger.info("\n=== test summary ===")

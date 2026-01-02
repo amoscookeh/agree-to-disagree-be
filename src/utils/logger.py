@@ -19,3 +19,6 @@ def setup_logger(name: str) -> logging.Logger:
         logger.addHandler(handler)
 
     return logger
+
+
+logger = setup_logger("agree-to-disagree")
