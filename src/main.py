@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import health_router, research_router
+from src.api.routes.auth import router as auth_router
+from src.api.routes.waitlist import router as waitlist_router
 from src.config import settings
 from src.utils.logger import setup_logger
 
@@ -27,6 +29,8 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(research_router)
+app.include_router(auth_router)
+app.include_router(waitlist_router)
 
 
 @app.get("/")
