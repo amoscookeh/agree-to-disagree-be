@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     nyt_api_key: str = ""
     guardian_api_key: str = ""
+    newsapi_key: str = ""
     semantic_scholar_api_key: str = ""
 
     log_level: str = "INFO"
