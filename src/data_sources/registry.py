@@ -76,7 +76,6 @@ class DataSourceRegistry:
                     "name": source.source_name,
                     "lean": source.ideological_lean.value,
                     "enabled": source.enabled,
-                    "status": "healthy",
                 }
             )
 
@@ -86,7 +85,6 @@ class DataSourceRegistry:
                     "name": source.source_name,
                     "lean": source.ideological_lean.value,
                     "enabled": source.enabled,
-                    "status": "healthy",
                 }
             )
 
@@ -96,7 +94,6 @@ class DataSourceRegistry:
                     "name": source.source_name,
                     "lean": source.ideological_lean.value,
                     "enabled": source.enabled,
-                    "status": "healthy",
                 }
             )
 
