@@ -74,24 +74,28 @@ def _extract_citations(report: SynthesisReport) -> list[dict]:
 
     for evidence in report.claim_a.evidence:
         if evidence.url not in seen_urls:
-            citations.append({
-                "source": evidence.source,
-                "url": evidence.url,
-                "claim": evidence.claim,
-                "confidence": evidence.confidence,
-                "perspective": "left",
-            })
+            citations.append(
+                {
+                    "source": evidence.source,
+                    "url": evidence.url,
+                    "claim": evidence.claim,
+                    "confidence": evidence.confidence,
+                    "perspective": "left",
+                }
+            )
             seen_urls.add(evidence.url)
 
     for evidence in report.claim_b.evidence:
         if evidence.url not in seen_urls:
-            citations.append({
-                "source": evidence.source,
-                "url": evidence.url,
-                "claim": evidence.claim,
-                "confidence": evidence.confidence,
-                "perspective": "right",
-            })
+            citations.append(
+                {
+                    "source": evidence.source,
+                    "url": evidence.url,
+                    "claim": evidence.claim,
+                    "confidence": evidence.confidence,
+                    "perspective": "right",
+                }
+            )
             seen_urls.add(evidence.url)
 
     return citations
@@ -116,7 +120,9 @@ async def synthesis_node(state: AgentState) -> dict:
 
     if total_results == 0:
         logger.warning("synthesis called with no research results")
-        _emit_progress(writer, "synthesis", "error", "No research results to synthesize")
+        _emit_progress(
+            writer, "synthesis", "error", "No research results to synthesize"
+        )
 
         return {
             "error": "no research results to synthesize",
@@ -201,4 +207,3 @@ async def synthesis_node(state: AgentState) -> dict:
             "report": None,
             "current_agent": "synthesis",
         }
-

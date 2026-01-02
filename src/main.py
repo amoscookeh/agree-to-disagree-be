@@ -15,7 +15,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", settings.openrouter_site_url],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://agree2disagree.vercel.app",
+        settings.openrouter_site_url,
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

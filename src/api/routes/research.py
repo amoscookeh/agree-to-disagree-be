@@ -48,7 +48,10 @@ async def research(request: ResearchRequest):
 
             final_state = await research_graph.ainvoke(initial_state)
 
-            if final_state.get("needs_clarification") and not request.clarification_response:
+            if (
+                final_state.get("needs_clarification")
+                and not request.clarification_response
+            ):
                 clarification_event = {
                     "type": "clarification_needed",
                     "questions": final_state.get("clarification_questions", []),

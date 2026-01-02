@@ -43,4 +43,3 @@ def build_research_graph() -> StateGraph:
 
 
 research_graph = build_research_graph()
-
