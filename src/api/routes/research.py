@@ -1,12 +1,14 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.graph import research_graph
 from src.agents.nodes.research import _create_registry
 from src.agents.state import AgentState
+from src.api.deps import check_quota
+from src.db.client import get_supabase
 from src.utils.logger import logger
 
 router = APIRouter(prefix="/api", tags=["research"])
@@ -24,7 +26,7 @@ class SourceInfo(BaseModel):
 
 
 @router.post("/research")
-async def research(request: ResearchRequest):
+async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
     query = request.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
@@ -39,6 +41,7 @@ async def research(request: ResearchRequest):
         initial_state["clarification_response"] = request.clarification_response
 
     async def event_generator():
+        research_completed = False
         try:
             async for chunk in research_graph.astream(
                 initial_state,
@@ -53,9 +56,13 @@ async def research(request: ResearchRequest):
                 and not request.clarification_response
             ):
                 clarification_event = {
-                    "type": "clarification_needed",
-                    "questions": final_state.get("clarification_questions", []),
-                    "refined_query": final_state.get("refined_query", query),
+                    "type": "clarification",
+                    "data": {
+                        "thread_id": final_state.get("thread_id", ""),
+                        "refined_query": final_state.get("refined_query", query),
+                        "questions": final_state.get("clarification_questions", []),
+                        "suggestions": final_state.get("clarification_suggestions", []),
+                    },
                 }
                 yield f"data: {json.dumps(clarification_event)}\n\n"
             elif final_state.get("report"):
@@ -65,18 +72,44 @@ async def research(request: ResearchRequest):
                     "citations": final_state.get("citations", []),
                 }
                 yield f"data: {json.dumps(report_event)}\n\n"
+                research_completed = True
             elif final_state.get("error"):
                 error_event = {
                     "type": "error",
-                    "message": final_state.get("error"),
+                    "data": {
+                        "code": "RESEARCH_FAILED",
+                        "message": final_state.get("error"),
+                        "recoverable": True,
+                    },
                 }
                 yield f"data: {json.dumps(error_event)}\n\n"
 
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            done_event = {
+                "type": "done",
+                "data": {
+                    "thread_id": final_state.get("thread_id"),
+                    "success": research_completed,
+                },
+            }
+            yield f"data: {json.dumps(done_event)}\n\n"
+
+            if research_completed:
+                supabase = get_supabase()
+                supabase.table("users").update(
+                    {"researches_used": user["researches_used"] + 1}
+                ).eq("id", user["id"]).execute()
 
         except Exception as e:
             logger.error(f"research stream error: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            error_event = {
+                "type": "error",
+                "data": {
+                    "code": "INTERNAL_ERROR",
+                    "message": str(e),
+                    "recoverable": False,
+                },
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
 
     return StreamingResponse(
         event_generator(),

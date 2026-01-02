@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     newsapi_key: str = ""
     semantic_scholar_api_key: str = ""
 
+    jwt_secret: str = "your-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24 * 7
+
     log_level: str = "INFO"
     environment: str = "development"
 
