@@ -40,7 +40,12 @@ async def test_nyt_search_and_extract():
     """test nyt can find relevant articles and extract content"""
     source = NYTSource()
 
-    results = await source.search("immigration policy", max_results=3)
+    try:
+        results = await source.search("immigration policy", max_results=3)
+    except Exception as e:
+        if "429" in str(e):
+            pytest.skip("nyt api rate limited")
+        raise
 
     assert len(results) > 0, "should return at least one result"
 

@@ -76,7 +76,8 @@ NEWSAPI_KEY=xxx                      # optional
 ```
 
 **Defaults:**
-- Model: `x-ai/grok-2-1212` (fast, non-reasoning)
+
+- Model: `x-ai/grok-4.1-fast` (fast, non-reasoning)
 - Temperature: 0.7
 - Citation threshold: 80% of claims must be cited
 
@@ -113,6 +114,7 @@ NEWSAPI_KEY=xxx                      # optional
 **Supported:** Python 3.11+, tested on macOS/Linux
 
 **Known limitations:**
+
 - US politics only
 - English language only
 - Rate limits depend on API keys (Guardian: 500/day, NYT: 500/day)

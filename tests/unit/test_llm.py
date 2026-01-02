@@ -5,7 +5,7 @@ def test_get_llm_returns_chat_model():
     """test get_llm returns configured ChatOpenAI instance"""
     model = get_llm()
 
-    assert model.model_name == "x-ai/grok-2-1212"
+    assert model.model_name == "x-ai/grok-4.1-fast"
     assert model.openai_api_base == "https://openrouter.ai/api/v1"
     assert model.temperature == 0.7
     assert "HTTP-Referer" in model.default_headers
@@ -30,7 +30,7 @@ def test_get_llm_custom_params():
 
 def test_default_llm_instance():
     """test default llm instance is configured"""
-    assert llm.model_name == "x-ai/grok-2-1212"
+    assert llm.model_name == "x-ai/grok-4.1-fast"
     assert llm.openai_api_base == "https://openrouter.ai/api/v1"
 
 

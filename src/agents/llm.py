@@ -8,12 +8,12 @@ logger = setup_logger(__name__)
 
 
 def get_llm(
-    model: str = "x-ai/grok-2-1212", temperature: float = 0.7, **kwargs
+    model: str = "x-ai/grok-4.1-fast", temperature: float = 0.7, **kwargs
 ) -> ChatOpenAI:
     """
     get configured llm instance for use in agent nodes
 
-    defaults to grok-2-1212 via openrouter
+    defaults to grok-4.1-fast via openrouter
     """
     return ChatOpenAI(
         model=model,
