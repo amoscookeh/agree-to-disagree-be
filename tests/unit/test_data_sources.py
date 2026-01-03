@@ -288,7 +288,7 @@ class TestNewsAPISource:
 
     def test_newsapi_properties(self):
         source = NewsAPISource(api_key="test_key")
-        assert source.source_name == "NewsAPI (Fox News, WSJ)"
+        assert source.source_name == "NewsAPI (Conservative)"
         assert source.ideological_lean == IdeologicalLean.RIGHT
         assert source.enabled is True
 
