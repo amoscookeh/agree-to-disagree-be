@@ -21,12 +21,12 @@ class TestSupervisorNode:
             yield mock.return_value
 
     @pytest.fixture
-    def mock_llm(self):
-        with patch("src.agents.nodes.supervisor.llm") as mock:
+    def mock_get_llm(self):
+        with patch("src.agents.nodes.supervisor.get_llm") as mock:
             yield mock
 
     @pytest.mark.asyncio
-    async def test_initial_sub_query_generation(self, mock_stream_writer, mock_llm):
+    async def test_initial_sub_query_generation(self, mock_stream_writer, mock_get_llm):
         """test supervisor generates sub-queries on first invocation (no drafts)"""
         state: AgentState = {
             "query": "What are perspectives on immigration policy?",
@@ -34,8 +34,10 @@ class TestSupervisorNode:
             "drafts": [],
         }
 
+        mock_llm = MagicMock()
         mock_structured = AsyncMock()
         mock_llm.with_structured_output.return_value = mock_structured
+        mock_get_llm.return_value = mock_llm
         mock_structured.ainvoke.return_value = SubQueryGeneration(
             sub_queries=[
                 SubQueryItem(
@@ -72,7 +74,9 @@ class TestSupervisorNode:
         assert result["sub_queries"][2]["angle"] == "both"
 
     @pytest.mark.asyncio
-    async def test_supervisor_decides_to_synthesize(self, mock_stream_writer, mock_llm):
+    async def test_supervisor_decides_to_synthesize(
+        self, mock_stream_writer, mock_get_llm
+    ):
         """test supervisor decides to synthesize when drafts are sufficient"""
         state: AgentState = {
             "query": "What are perspectives on immigration policy?",
@@ -112,8 +116,10 @@ class TestSupervisorNode:
             ],
         }
 
+        mock_llm = MagicMock()
         mock_structured = AsyncMock()
         mock_llm.with_structured_output.return_value = mock_structured
+        mock_get_llm.return_value = mock_llm
         mock_structured.ainvoke.return_value = SupervisorDecision(
             has_sufficient_info=True,
             reasoning="Both perspectives are well covered with sufficient evidence.",
@@ -127,7 +133,9 @@ class TestSupervisorNode:
         assert "sufficient" in result["supervisor_reasoning"].lower()
 
     @pytest.mark.asyncio
-    async def test_supervisor_continues_research(self, mock_stream_writer, mock_llm):
+    async def test_supervisor_continues_research(
+        self, mock_stream_writer, mock_get_llm
+    ):
         """test supervisor generates more sub-queries when info is insufficient"""
         state: AgentState = {
             "query": "What are perspectives on immigration policy?",
@@ -153,8 +161,10 @@ class TestSupervisorNode:
             ],
         }
 
+        mock_llm = MagicMock()
         mock_structured = AsyncMock()
         mock_llm.with_structured_output.return_value = mock_structured
+        mock_get_llm.return_value = mock_llm
         mock_structured.ainvoke.return_value = SupervisorDecision(
             has_sufficient_info=False,
             reasoning="Need more data on conservative perspective and academic research.",
@@ -176,7 +186,7 @@ class TestSupervisorNode:
         assert result["pending_sub_queries"][0]["angle"] == "right"
 
     @pytest.mark.asyncio
-    async def test_max_cycles_enforced(self, mock_stream_writer, mock_llm):
+    async def test_max_cycles_enforced(self, mock_stream_writer, mock_get_llm):
         """test supervisor forces synthesis after max cycles (5)"""
         state: AgentState = {
             "query": "What are perspectives on immigration policy?",

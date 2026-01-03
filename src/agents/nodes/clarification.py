@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from src.agents.llm import llm
-from src.agents.prompts import CLARIFICATION_PROMPT
+from prompts.clarification import CLARIFICATION_PROMPT
+from prompts.models import CLARIFICATION_MODEL
+from src.agents.llm import get_llm
 from src.agents.state import AgentState
 from src.utils.logger import logger
 
@@ -35,11 +36,7 @@ def _emit_progress(
 
 
 async def clarification_node(state: AgentState) -> dict:
-    """
-    analyze query clarity and refine it
-
-    uses heuristics first, then llm if needed
-    """
+    """analyze query clarity and refine it"""
     query = state.get("query", "").strip()
     clarification_response = state.get("clarification_response")
 
@@ -109,6 +106,7 @@ async def clarification_node(state: AgentState) -> dict:
     )
 
     try:
+        llm = get_llm(CLARIFICATION_MODEL)
         structured_llm = llm.with_structured_output(ClarificationAnalysis)
 
         prompt = CLARIFICATION_PROMPT.format(query=query)
@@ -163,13 +161,11 @@ def _obviously_needs_clarification(query: str) -> bool:
     """heuristic check for obviously vague queries"""
     query_lower = query.lower()
 
-    # check for vague terms
     vague_terms = ("this", "that", "it", "stuff", "things", "something")
     for term in vague_terms:
         if f" {term} " in f" {query_lower} ":
             return True
 
-    # check for very short queries
     return len(query.split()) < 3
 
 
@@ -178,7 +174,6 @@ def _basic_query_refinement(query: str) -> str:
     refined = query.strip()
     refined = " ".join(refined.split())
 
-    # add question mark if it looks like a question
     if not refined.endswith("?"):
         if any(
             refined.lower().startswith(w)

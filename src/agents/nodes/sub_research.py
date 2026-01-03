@@ -7,6 +7,12 @@ from langchain_core.tools import tool
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
+from prompts.models import SUB_RESEARCH_MODEL, SUB_RESEARCH_TOOL_MODEL
+from prompts.sub_research import (
+    ANGLE_DESCRIPTIONS,
+    DRAFT_SYNTHESIS_PROMPT,
+    SUB_RESEARCH_SYSTEM_PROMPT,
+)
 from src.agents.llm import get_llm
 from src.agents.state import AgentState, Draft, SubQuery
 from src.data_sources import get_default_registry, search_result_to_dict
@@ -103,26 +109,6 @@ async def search_news_sources(query: str, lean: str = "both") -> str:
     return "\n\n".join(formatted)
 
 
-DRAFT_SYNTHESIS_PROMPT = """you are synthesizing research results for a specific sub-query.
-
-sub-query: {sub_query}
-angle: {angle}
-
-{sources_section}
-
-create a brief synthesis covering:
-1. main findings from the sources
-2. key points relevant to the sub-query
-3. any notable perspectives or disagreements found
-
-respond with:
-- summary: a 2-3 sentence synthesis of findings
-- key_findings: 2-4 bullet points of important findings
-- left_perspective: (if applicable) what left-leaning sources emphasized
-- right_perspective: (if applicable) what right-leaning sources emphasized
-"""
-
-
 def _emit_progress(
     writer, agent: str, status: str, message: str, details: dict | None = None
 ):
@@ -211,47 +197,28 @@ async def _research_single_query(
     google_results_text: str = ""
 
     try:
-        # build tools list
         tools = [search_news_sources]
         if serpapi_client.enabled:
             tools.append(search_google)
 
-        # create llm with tools
-        llm_instance = get_llm(temperature=0.5)
+        llm_instance = get_llm(SUB_RESEARCH_TOOL_MODEL)
         llm_with_tools = llm_instance.bind_tools(tools)
 
-        # create callback for progress tracking
         callback = ToolProgressCallback(writer, sq_id)
 
-        angle_desc = {
-            "left": "left-leaning/progressive perspectives",
-            "right": "right-leaning/conservative perspectives",
-            "both": "both perspectives equally",
-        }
+        angle_desc = ANGLE_DESCRIPTIONS.get(sq_angle, "both perspectives")
 
-        system_prompt = f"""you are researching a specific aspect of a political topic.
-
-sub-query: {sq_query}
-angle: {sq_angle} (focus on {angle_desc.get(sq_angle, "both perspectives")})
-
-you have these tools:
-- search_news_sources: search left/right-leaning news for articles
-- search_google: search google for stats, studies, or additional sources
-
-strategy:
-1. first search news sources for the relevant perspective
-2. if news sources lack specific statistics or numbers, use google search
-3. if news sources return few results (<3), supplement with google search
-4. compile findings into a summary
-
-focus on finding concrete evidence and citations."""
+        system_prompt = SUB_RESEARCH_SYSTEM_PROMPT.format(
+            sub_query=sq_query,
+            angle=sq_angle,
+            angle_desc=angle_desc,
+        )
 
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"research: {sq_query}"),
         ]
 
-        # tool-calling loop (max 5 iterations)
         max_iterations = 5
         iteration = 0
         research_content = []
@@ -259,18 +226,15 @@ focus on finding concrete evidence and citations."""
         while iteration < max_iterations:
             iteration += 1
 
-            # invoke llm with tools
             response = await llm_with_tools.ainvoke(
                 messages, config={"callbacks": [callback]}
             )
 
             if not response.tool_calls:
-                # no more tool calls, llm is done
                 if isinstance(response, AIMessage) and response.content:
                     research_content.append(str(response.content))
                 break
 
-            # execute tool calls
             messages.append(response)
 
             for tool_call in response.tool_calls:
@@ -280,9 +244,7 @@ focus on finding concrete evidence and citations."""
                 if tool_name == "search_news_sources":
                     result = await search_news_sources.ainvoke(tool_args)
 
-                    # parse results to extract structured data
                     if "left" in tool_args.get("lean", "both").lower():
-                        # extract left results
                         registry = get_default_registry()
                         left_raw = await registry.search_left(sq_query, max_results=3)
                         left_results.extend(
@@ -290,7 +252,6 @@ focus on finding concrete evidence and citations."""
                         )
 
                     if "right" in tool_args.get("lean", "both").lower():
-                        # extract right results
                         registry = get_default_registry()
                         right_raw = await registry.search_right(sq_query, max_results=3)
                         right_results.extend(
@@ -328,7 +289,6 @@ focus on finding concrete evidence and citations."""
             details={"sub_query_id": sq_id, "sources_count": total_sources},
         )
 
-        # create synthesis prompt with gathered sources
         sources_section = ""
         if left_results:
             sources_section += (
@@ -347,7 +307,7 @@ focus on finding concrete evidence and citations."""
             sub_query=sq_query, angle=sq_angle, sources_section=sources_section
         )
 
-        structured_llm = get_llm().with_structured_output(DraftReport)
+        structured_llm = get_llm(SUB_RESEARCH_MODEL).with_structured_output(DraftReport)
         result = await structured_llm.ainvoke(prompt)
         draft_report = DraftReport.model_validate(result)
 
