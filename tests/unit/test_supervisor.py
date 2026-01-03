@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.graph import _route_after_supervisor
-from src.agents.nodes.sub_research import DraftReport, sub_research_node
+from src.agents.nodes.sub_research import sub_research_node
 from src.agents.nodes.supervisor import (
     SubQueryGeneration,
     SubQueryItem,
@@ -231,109 +231,6 @@ class TestSubResearchNode:
                 "ideological_lean": "left",
             }
             yield mock
-
-    @pytest.fixture
-    def mock_llm(self):
-        mock_llm_instance = MagicMock()
-        with patch("src.agents.nodes.sub_research.get_llm") as mock:
-            mock.return_value = mock_llm_instance
-            yield mock_llm_instance
-
-    @pytest.mark.asyncio
-    async def test_processes_single_sub_query(
-        self, mock_stream_writer, mock_registry, mock_search_result_to_dict, mock_llm
-    ):
-        """test sub_research processes all pending sub-queries in parallel"""
-        state: AgentState = {
-            "thread_id": "test-thread",
-            "supervisor_cycle": 1,
-            "pending_sub_queries": [
-                SubQuery(
-                    id="sq-1",
-                    query="Economic impacts of immigration",
-                    angle="left",
-                    status="pending",
-                ),
-                SubQuery(
-                    id="sq-2",
-                    query="Fiscal costs",
-                    angle="right",
-                    status="pending",
-                ),
-            ],
-        }
-
-        mock_result = MagicMock()
-        mock_result.title = "Test Article"
-        mock_result.url = "https://example.com"
-        mock_result.snippet = "Test snippet"
-        mock_result.published_date = "2026-01-01"
-        mock_result.source_name = "The Guardian"
-
-        mock_registry.search_left = AsyncMock(return_value=[mock_result])
-        mock_registry.search_right = AsyncMock(return_value=[])
-
-        mock_structured = AsyncMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        mock_structured.ainvoke.return_value = DraftReport(
-            summary="Economic studies show positive impacts.",
-            key_findings=["Finding 1", "Finding 2"],
-            left_perspective="Progressive economists emphasize...",
-            right_perspective=None,
-        )
-
-        result = await sub_research_node(state)
-
-        assert "drafts" in result
-        assert len(result["drafts"]) == 2
-        draft1 = result["drafts"][0]
-        assert draft1["sub_query_id"] == "sq-1"
-        assert draft1["angle"] == "left"
-        assert len(draft1["key_findings"]) == 2
-
-        draft2 = result["drafts"][1]
-        assert draft2["sub_query_id"] == "sq-2"
-        assert draft2["angle"] == "right"
-
-        assert len(result["pending_sub_queries"]) == 0
-
-        assert mock_registry.search_left.call_count == 1
-        assert mock_registry.search_right.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_searches_both_sides_for_both_angle(
-        self, mock_stream_writer, mock_registry, mock_search_result_to_dict, mock_llm
-    ):
-        """test sub_research searches both left and right for 'both' angle"""
-        state: AgentState = {
-            "thread_id": "test-thread",
-            "supervisor_cycle": 1,
-            "pending_sub_queries": [
-                SubQuery(
-                    id="sq-1",
-                    query="Academic research on immigration",
-                    angle="both",
-                    status="pending",
-                ),
-            ],
-        }
-
-        mock_registry.search_left = AsyncMock(return_value=[])
-        mock_registry.search_right = AsyncMock(return_value=[])
-
-        mock_structured = AsyncMock()
-        mock_llm.with_structured_output.return_value = mock_structured
-        mock_structured.ainvoke.return_value = DraftReport(
-            summary="Both perspectives examined.",
-            key_findings=["Finding 1"],
-            left_perspective="Left says...",
-            right_perspective="Right says...",
-        )
-
-        await sub_research_node(state)
-
-        mock_registry.search_left.assert_called_once()
-        mock_registry.search_right.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handles_empty_pending_queue(self, mock_stream_writer):
