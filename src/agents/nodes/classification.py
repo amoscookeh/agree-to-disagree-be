@@ -3,9 +3,7 @@ from datetime import UTC, datetime
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from prompts.classification import CLASSIFICATION_PROMPT
-from prompts.models import CLASSIFICATION_MODEL
-from src.agents.llm import get_llm
+from src.agents.llm import llm
 from src.agents.state import AgentState
 from src.utils.logger import logger
 
@@ -40,6 +38,7 @@ def _format_conversation_history(messages: list[dict]) -> str:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
 
+        # handle dict content (from database)
         if isinstance(content, dict):
             if content.get("type") == "query":
                 content = content.get("query", "")
@@ -82,7 +81,12 @@ Disagreements: {len(report.get("disagreements", []))} points
 
 
 async def classification_node(state: AgentState) -> dict:
-    """classify incoming message as research prompt or follow-up question"""
+    """
+    classify incoming message as research prompt or follow-up question
+
+    if first message: always research_prompt
+    if subsequent: use llm to classify based on conversation context
+    """
     writer = get_stream_writer()
     query = state.get("query", "").strip()
     messages = state.get("messages", [])
@@ -95,6 +99,7 @@ async def classification_node(state: AgentState) -> dict:
         query=query,
     )
 
+    # if first message in conversation, always treat as research prompt
     messages_list = messages if isinstance(messages, list) else []
     if not messages_list or len(messages_list) == 0:
         logger.info("first message in conversation, classifying as research_prompt")
@@ -113,6 +118,7 @@ async def classification_node(state: AgentState) -> dict:
             "current_agent": "classification",
         }
 
+    # subsequent messages: use llm to classify
     _emit_progress(
         writer,
         "classification",
@@ -121,7 +127,7 @@ async def classification_node(state: AgentState) -> dict:
         query=query,
         tool_call={
             "tool": "llm_classify_message",
-            "model": CLASSIFICATION_MODEL.model_id,
+            "model": "openai/gpt-4o",
             "query": query,
             "context_messages": len(messages_list),
             "output_schema": "MessageClassification",
@@ -131,14 +137,35 @@ async def classification_node(state: AgentState) -> dict:
     conversation_history = _format_conversation_history(messages_list)
     report_context = _format_report(state)
 
-    prompt = CLASSIFICATION_PROMPT.format(
-        conversation_history=conversation_history,
-        report_context=report_context,
-        query=query,
-    )
+    prompt = f"""you are a message classifier for a political research assistant.
+
+given the conversation history and current message, determine if this is:
+1. "research_prompt" - a new research question requiring full research workflow
+2. "follow_up_question" - a follow-up question about the previous research
+
+conversation history:
+{conversation_history}
+
+{report_context}
+
+current message: {query}
+
+guidelines:
+- if asking about specific details from the report → follow_up_question
+- if asking for clarification or more info on a topic → follow_up_question
+- if introducing a completely new topic → research_prompt
+- if asking to compare or analyze the report → follow_up_question
+- if asking "what about X" where X is related to report → follow_up_question
+
+respond in json format with:
+{{
+    "message_type": "research_prompt" or "follow_up_question",
+    "confidence": 0.0-1.0,
+    "reasoning": "brief explanation of classification"
+}}
+"""
 
     try:
-        llm = get_llm(CLASSIFICATION_MODEL)
         structured_llm = llm.with_structured_output(MessageClassification)
         classification = await structured_llm.ainvoke(prompt)
 
@@ -174,6 +201,7 @@ async def classification_node(state: AgentState) -> dict:
             f"classification failed: {e}, defaulting to research_prompt",
         )
 
+        # fallback to research prompt on error
         return {
             "message_type": "research_prompt",
             "current_agent": "classification",

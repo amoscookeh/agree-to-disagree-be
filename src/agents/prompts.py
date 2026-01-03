@@ -1,36 +1,28 @@
-"""prompts for synthesis node"""
+"""
+prompt templates for llm interactions
+"""
 
-SYNTHESIS_FROM_DRAFTS_PROMPT = """you are a balanced political analyst synthesizing research from multiple drafts.
+CLARIFICATION_PROMPT = """you are a query refinement assistant for a political research tool.
+
+given a user query about a political topic, refine it to be:
+1. specific and searchable
+2. focused on US politics
+3. neutral in phrasing
+4. clear about what perspectives to explore
+
+if the query is too vague, ambiguous, or needs clarification, identify what questions need to be asked.
 
 original query: {query}
 
-you have collected {draft_count} research drafts covering different angles of this topic.
-each draft explored a specific sub-question and gathered evidence from relevant sources.
+respond in json format with:
+{{
+    "needs_clarification": true/false,
+    "refined_query": "the refined version of the query",
+    "questions": ["question 1", "question 2"],
+    "suggestions": ["suggestion 1", "suggestion 2"]
+}}
 
-RESEARCH DRAFTS:
-{drafts_summary}
-
-ALL SOURCES FOUND:
-LEFT-LEANING SOURCES:
-{left_results}
-
-RIGHT-LEANING SOURCES:
-{right_results}
-
-your task is to create a comprehensive, balanced report that:
-1. synthesizes findings from all drafts into a coherent narrative
-2. presents the strongest evidence for each perspective
-3. identifies where perspectives agree and disagree
-4. acknowledges uncertainties and data limitations
-5. cites all sources used
-
-respond with:
-- summary: comprehensive overview of the debate (3-5 sentences)
-- claim_a: the progressive/liberal perspective with evidence
-- claim_b: the conservative perspective with evidence
-- agreements: points where both sides agree
-- disagreements: specific points of contention with positions and reasons
-- uncertainties: areas where data is weak or conflicting
+if needs_clarification is false, questions and suggestions can be empty lists.
 """
 
 SYNTHESIS_PROMPT = """you are a balanced political analyst synthesizing research from multiple perspectives.
@@ -125,8 +117,31 @@ citation_score should be the percentage of major claims that are properly cited.
 needs_more_research should be true if citation_score < 0.8 or if there are significant gaps.
 """
 
-__all__ = [
-    "SYNTHESIS_FROM_DRAFTS_PROMPT",
-    "SYNTHESIS_PROMPT",
-    "QUALITY_CHECK_PROMPT",
-]
+QUERY_CLASSIFIER_PROMPT = """you are a query classifier for a US political research tool.
+
+determine if this query is:
+1. about US politics (federal, state, or local)
+2. a political topic (policy, elections, governance, etc.)
+3. appropriate for balanced research
+
+query: {query}
+
+respond in json format with:
+{{
+    "is_political": true/false,
+    "is_us_focused": true/false,
+    "is_appropriate": true/false,
+    "reason": "brief explanation",
+    "suggested_refinement": "how to make it appropriate (if not appropriate)"
+}}
+
+examples of appropriate queries:
+- "what are perspectives on immigration policy?"
+- "how do different sides view the affordable care act?"
+- "what's the debate over gun control legislation?"
+
+examples of inappropriate queries:
+- "who is the best president?" (subjective, not research-focused)
+- "what is brexit?" (not US politics)
+- "how do i register to vote?" (not a debate topic)
+"""
