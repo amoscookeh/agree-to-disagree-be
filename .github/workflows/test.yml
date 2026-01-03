@@ -67,13 +67,19 @@ jobs:
       - name: Run benchmark tests (DeepEval)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: uv run pytest -m benchmark -v
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GUARDIAN_API_KEY: ${{ secrets.GUARDIAN_API_KEY }}
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+        run: |
+          mkdir -p benchmark-results
+          uv run pytest -m benchmark -v --json-report --json-report-file=benchmark-results/pytest-report.json
       
-      - name: Upload test results
+      - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: benchmark-results-${{ github.sha }}
-          path: .pytest_cache
+          path: benchmark-results/
           retention-days: 7
 

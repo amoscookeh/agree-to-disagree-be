@@ -241,7 +241,7 @@ class TestSubResearchNode:
     async def test_processes_single_sub_query(
         self, mock_stream_writer, mock_registry, mock_search_result_to_dict, mock_llm
     ):
-        """test sub_research processes one sub-query and returns draft"""
+        """test sub_research processes all pending sub-queries in parallel"""
         state: AgentState = {
             "thread_id": "test-thread",
             "supervisor_cycle": 1,
@@ -283,17 +283,20 @@ class TestSubResearchNode:
         result = await sub_research_node(state)
 
         assert "drafts" in result
-        assert len(result["drafts"]) == 1
-        draft = result["drafts"][0]
-        assert draft["sub_query_id"] == "sq-1"
-        assert draft["angle"] == "left"
-        assert len(draft["key_findings"]) == 2
+        assert len(result["drafts"]) == 2
+        draft1 = result["drafts"][0]
+        assert draft1["sub_query_id"] == "sq-1"
+        assert draft1["angle"] == "left"
+        assert len(draft1["key_findings"]) == 2
 
-        assert len(result["pending_sub_queries"]) == 1
-        assert result["pending_sub_queries"][0]["id"] == "sq-2"
+        draft2 = result["drafts"][1]
+        assert draft2["sub_query_id"] == "sq-2"
+        assert draft2["angle"] == "right"
 
-        mock_registry.search_left.assert_called_once()
-        mock_registry.search_right.assert_not_called()
+        assert len(result["pending_sub_queries"]) == 0
+
+        assert mock_registry.search_left.call_count == 1
+        assert mock_registry.search_right.call_count == 1
 
     @pytest.mark.asyncio
     async def test_searches_both_sides_for_both_angle(
