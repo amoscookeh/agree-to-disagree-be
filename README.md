@@ -55,6 +55,7 @@ uv run pytest -m benchmark -v           # run LLM evaluation benchmarks
 - Citation tracking with source attribution
 - Conversation memory via LangGraph checkpointer
 - Follow-up questions on existing research
+- Optional Google Search via SerpAPI for statistics and additional sources
 
 ## Configuration
 
@@ -70,9 +71,10 @@ Optional (improves coverage):
 GUARDIAN_API_KEY=xxx
 NYT_API_KEY=xxx
 NEWSAPI_KEY=xxx
+SERPAPI_KEY=xxx  # enables Google Search for statistics
 ```
 
-Defaults: Grok 4.1 Fast, temp 0.7, 80% citation threshold
+**Defaults:** Grok 4.1 Fast, temperature 0.7, 80% citation threshold
 
 ## Architecture
 
@@ -94,8 +96,12 @@ Defaults: Grok 4.1 Fast, temp 0.7, 80% citation threshold
 
 MVP in active development. API is unstable.
 
-**Supported:** Python 3.11+, macOS/Linux  
-**Limitations:** US politics only, English only, rate limits apply (Guardian 500/day, NYT 500/day)
+**Supported:** Python 3.11+, macOS/Linux
+
+**Limitations:** 
+- US politics queries only
+- English language only
+- API rate limits: Guardian 500/day, NYT 500/day
 
 ## Contributing
 

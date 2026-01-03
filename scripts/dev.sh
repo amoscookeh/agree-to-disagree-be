@@ -26,6 +26,14 @@ case "$1" in
     uv run python scripts/test_connections.py
     ;;
   
+  compare-evals)
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "usage: ./scripts/dev.sh compare-evals <file1.json> <file2.json>"
+      exit 1
+    fi
+    uv run python scripts/compare_evals.py "$2" "$3"
+    ;;
+  
   lint)
     echo "running linter..."
     uv run ruff check .
@@ -73,6 +81,7 @@ case "$1" in
     echo "  test             - run tests"
     echo "  test-cov         - run tests with coverage"
     echo "  test-connections - test api connections"
+    echo "  compare-evals    - compare two eval result files"
     echo "  lint             - check code quality"
     echo "  lint-fix         - fix linting issues"
     echo "  format           - format code"
