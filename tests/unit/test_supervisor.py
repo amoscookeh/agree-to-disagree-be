@@ -234,8 +234,10 @@ class TestSubResearchNode:
 
     @pytest.fixture
     def mock_llm(self):
-        with patch("src.agents.nodes.sub_research.llm") as mock:
-            yield mock
+        mock_llm_instance = MagicMock()
+        with patch("src.agents.nodes.sub_research.get_llm") as mock:
+            mock.return_value = mock_llm_instance
+            yield mock_llm_instance
 
     @pytest.mark.asyncio
     async def test_processes_single_sub_query(

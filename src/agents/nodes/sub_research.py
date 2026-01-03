@@ -1,12 +1,16 @@
 import asyncio
 from datetime import UTC, datetime
 
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from src.agents.llm import llm
+from src.agents.llm import get_llm
 from src.agents.state import AgentState, Draft, SubQuery
 from src.data_sources import get_default_registry, search_result_to_dict
+from src.data_sources.web.serpapi import serpapi_client
 from src.utils.logger import logger
 
 
@@ -15,6 +19,88 @@ class DraftReport(BaseModel):
     key_findings: list[str]
     left_perspective: str | None = None
     right_perspective: str | None = None
+
+
+class ToolProgressCallback(BaseCallbackHandler):
+    """callback to emit progress events for tool usage"""
+
+    def __init__(self, writer, sub_query_id: str):
+        self.writer = writer
+        self.sub_query_id = sub_query_id
+
+    def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
+        tool_name = serialized.get("name", "unknown")
+        _emit_progress(
+            self.writer,
+            "sub_research",
+            "searching",
+            f"using {tool_name}...",
+            details={
+                "sub_query_id": self.sub_query_id,
+                "tool": tool_name,
+                "query": input_str[:100]
+                if isinstance(input_str, str)
+                else str(input_str)[:100],
+            },
+        )
+
+    def on_tool_end(self, output: str, **kwargs) -> None:
+        pass
+
+
+@tool
+async def search_google(query: str) -> str:
+    """
+    search google for statistics, studies, or additional sources.
+    use when:
+    - news sources don't provide specific numbers/stats
+    - need academic or government sources for data
+    - not enough articles from news sources
+
+    args:
+        query: search query, be specific (e.g., "immigration GDP impact statistics 2024")
+    """
+    results = await serpapi_client.search(query, num_results=5)
+    if not results:
+        return "google search not available or returned no results."
+
+    formatted = []
+    for r in results:
+        formatted.append(f"- {r.title}\n  URL: {r.url}\n  {r.snippet}")
+
+    return "\n\n".join(formatted)
+
+
+@tool
+async def search_news_sources(query: str, lean: str = "both") -> str:
+    """
+    search news sources for articles.
+
+    args:
+        query: search query
+        lean: "left", "right", or "both"
+    """
+    registry = get_default_registry()
+
+    if lean == "left":
+        results_raw = await registry.search_left(query, max_results=3)
+    elif lean == "right":
+        results_raw = await registry.search_right(query, max_results=3)
+    else:
+        left = await registry.search_left(query, max_results=3)
+        right = await registry.search_right(query, max_results=3)
+        results_raw = left + right
+
+    if not results_raw:
+        return "no articles found from news sources."
+
+    formatted = []
+    for r in results_raw:
+        formatted.append(
+            f"- [{r.ideological_lean.value}] {r.title}\n  URL: {r.url}\n  {r.snippet}"
+        )
+
+    return "\n\n".join(formatted)
 
 
 DRAFT_SYNTHESIS_PROMPT = """you are synthesizing research results for a specific sub-query.
@@ -102,7 +188,7 @@ def _format_results(results: list[dict]) -> str:
 async def _research_single_query(
     sub_query: SubQuery, thread_id: str, cycle: int, writer
 ) -> Draft:
-    """research a single sub-query and return draft"""
+    """research a single sub-query using tool-calling approach"""
     sq_id = sub_query["id"]
     sq_query = sub_query["query"]
     sq_angle = sub_query["angle"]
@@ -120,32 +206,117 @@ async def _research_single_query(
         },
     )
 
-    registry = get_default_registry()
     left_results: list[dict] = []
     right_results: list[dict] = []
+    google_results_text: str = ""
 
     try:
-        if sq_angle in ("left", "both"):
-            _emit_progress(
-                writer,
-                "sub_research",
-                "searching",
-                "searching left-leaning sources...",
-                details={"sub_query_id": sq_id, "angle": "left"},
-            )
-            left_raw = await registry.search_left(sq_query, max_results=3)
-            left_results = [search_result_to_dict(r) for r in left_raw]
+        # build tools list
+        tools = [search_news_sources]
+        if serpapi_client.enabled:
+            tools.append(search_google)
 
-        if sq_angle in ("right", "both"):
-            _emit_progress(
-                writer,
-                "sub_research",
-                "searching",
-                "searching right-leaning sources...",
-                details={"sub_query_id": sq_id, "angle": "right"},
+        # create llm with tools
+        llm_instance = get_llm(temperature=0.5)
+        llm_with_tools = llm_instance.bind_tools(tools)
+
+        # create callback for progress tracking
+        callback = ToolProgressCallback(writer, sq_id)
+
+        angle_desc = {
+            "left": "left-leaning/progressive perspectives",
+            "right": "right-leaning/conservative perspectives",
+            "both": "both perspectives equally",
+        }
+
+        system_prompt = f"""you are researching a specific aspect of a political topic.
+
+sub-query: {sq_query}
+angle: {sq_angle} (focus on {angle_desc.get(sq_angle, "both perspectives")})
+
+you have these tools:
+- search_news_sources: search left/right-leaning news for articles
+- search_google: search google for stats, studies, or additional sources
+
+strategy:
+1. first search news sources for the relevant perspective
+2. if news sources lack specific statistics or numbers, use google search
+3. if news sources return few results (<3), supplement with google search
+4. compile findings into a summary
+
+focus on finding concrete evidence and citations."""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"research: {sq_query}"),
+        ]
+
+        # tool-calling loop (max 5 iterations)
+        max_iterations = 5
+        iteration = 0
+        research_content = []
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # invoke llm with tools
+            response = await llm_with_tools.ainvoke(
+                messages, config={"callbacks": [callback]}
             )
-            right_raw = await registry.search_right(sq_query, max_results=3)
-            right_results = [search_result_to_dict(r) for r in right_raw]
+
+            if not response.tool_calls:
+                # no more tool calls, llm is done
+                if isinstance(response, AIMessage) and response.content:
+                    research_content.append(str(response.content))
+                break
+
+            # execute tool calls
+            messages.append(response)
+
+            for tool_call in response.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
+
+                if tool_name == "search_news_sources":
+                    result = await search_news_sources.ainvoke(tool_args)
+
+                    # parse results to extract structured data
+                    if "left" in tool_args.get("lean", "both").lower():
+                        # extract left results
+                        registry = get_default_registry()
+                        left_raw = await registry.search_left(sq_query, max_results=3)
+                        left_results.extend(
+                            [search_result_to_dict(r) for r in left_raw]
+                        )
+
+                    if "right" in tool_args.get("lean", "both").lower():
+                        # extract right results
+                        registry = get_default_registry()
+                        right_raw = await registry.search_right(sq_query, max_results=3)
+                        right_results.extend(
+                            [search_result_to_dict(r) for r in right_raw]
+                        )
+
+                    if tool_args.get("lean") == "both":
+                        registry = get_default_registry()
+                        left_raw = await registry.search_left(sq_query, max_results=3)
+                        right_raw = await registry.search_right(sq_query, max_results=3)
+                        left_results.extend(
+                            [search_result_to_dict(r) for r in left_raw]
+                        )
+                        right_results.extend(
+                            [search_result_to_dict(r) for r in right_raw]
+                        )
+
+                elif tool_name == "search_google":
+                    result = await search_google.ainvoke(tool_args)
+                    google_results_text = str(result)
+                else:
+                    result = f"unknown tool: {tool_name}"
+
+                messages.append(
+                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
+                )
 
         total_sources = len(left_results) + len(right_results)
 
@@ -157,6 +328,7 @@ async def _research_single_query(
             details={"sub_query_id": sq_id, "sources_count": total_sources},
         )
 
+        # create synthesis prompt with gathered sources
         sources_section = ""
         if left_results:
             sources_section += (
@@ -166,6 +338,8 @@ async def _research_single_query(
             sources_section += (
                 f"RIGHT-LEANING SOURCES:\n{_format_results(right_results)}\n\n"
             )
+        if google_results_text:
+            sources_section += f"GOOGLE SEARCH RESULTS:\n{google_results_text}\n\n"
         if not sources_section:
             sources_section = "No sources found for this query."
 
@@ -173,7 +347,7 @@ async def _research_single_query(
             sub_query=sq_query, angle=sq_angle, sources_section=sources_section
         )
 
-        structured_llm = llm.with_structured_output(DraftReport)
+        structured_llm = get_llm().with_structured_output(DraftReport)
         result = await structured_llm.ainvoke(prompt)
         draft_report = DraftReport.model_validate(result)
 

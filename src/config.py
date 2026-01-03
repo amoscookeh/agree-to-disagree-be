@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     guardian_api_key: str = ""
     newsapi_key: str = ""
     semantic_scholar_api_key: str = ""
+    serpapi_key: str = ""
 
     jwt_secret: str = "your-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
