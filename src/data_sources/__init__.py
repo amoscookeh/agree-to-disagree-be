@@ -21,7 +21,7 @@ def get_default_registry() -> DataSourceRegistry:
     registry.register_right(NYPostRSSSource())
     registry.register_right(BreitbartRSSSource())
     registry.register_right(DailyWireRSSSource())
-    
+
     if settings.newsapi_key:
         registry.register_right(NewsAPISource())
 

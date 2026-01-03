@@ -1,5 +1,5 @@
-from datetime import datetime
 import re
+from datetime import datetime
 
 import feedparser
 import httpx
@@ -9,24 +9,24 @@ from src.utils.logger import logger
 
 
 def _tokenize(text: str) -> set[str]:
-    return set(re.findall(r'\b[a-z]+\b', text.lower()))
+    return set(re.findall(r"\b[a-z]+\b", text.lower()))
 
 
 def _relevance_score(query: str, title: str, summary: str) -> float:
     query_words = _tokenize(query)
     content_words = _tokenize(f"{title} {summary}")
-    
+
     if not query_words:
         return 0.0
-    
+
     matches = query_words & content_words
     score = len(matches) / len(query_words)
-    
+
     title_words = _tokenize(title)
     title_matches = query_words & title_words
     if title_matches:
         score += 0.3 * (len(title_matches) / len(query_words))
-    
+
     return min(score, 1.0)
 
 
@@ -50,23 +50,23 @@ class DailyWireRSSSource(DataSource):
                     response = await client.get(self._feed_url)
                     response.raise_for_status()
                     feed = feedparser.parse(response.text)
-                
+
                 scored_entries = []
                 for entry in feed.entries:
                     title = entry.get("title", "")
                     summary = entry.get("summary", entry.get("description", ""))
                     score = _relevance_score(query, title, summary)
-                    
+
                     if score > 0.2:
                         scored_entries.append((score, entry))
-                
+
                 scored_entries.sort(key=lambda x: x[0], reverse=True)
-                
+
                 results = []
                 for score, entry in scored_entries[:max_results]:
                     title = entry.get("title", "")
                     summary = entry.get("summary", entry.get("description", ""))
-                    
+
                     published_date = None
                     if hasattr(entry, "published_parsed") and entry.published_parsed:
                         try:
@@ -74,10 +74,10 @@ class DailyWireRSSSource(DataSource):
                             published_date = dt.isoformat()
                         except Exception:
                             pass
-                    
+
                     snippet = summary[:200] if summary else title[:200]
-                    snippet = re.sub(r'<[^>]+>', '', snippet)
-                    
+                    snippet = re.sub(r"<[^>]+>", "", snippet)
+
                     results.append(
                         SearchResult(
                             title=title,
@@ -88,8 +88,10 @@ class DailyWireRSSSource(DataSource):
                             ideological_lean=self.ideological_lean,
                         )
                     )
-                
-                logger.info(f"daily wire rss: found {len(results)} results for '{query}'")
+
+                logger.info(
+                    f"daily wire rss: found {len(results)} results for '{query}'"
+                )
                 return results
 
             except Exception as e:
@@ -103,4 +105,3 @@ class DailyWireRSSSource(DataSource):
                 return response.status_code == 200
         except Exception:
             return False
-
