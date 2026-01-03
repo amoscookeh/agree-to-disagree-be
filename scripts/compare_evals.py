@@ -2,6 +2,7 @@
 import json
 import sys
 
+
 def load_results(path: str) -> list[dict]:
     with open(path) as f:
         return json.load(f)
