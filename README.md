@@ -79,8 +79,8 @@ Defaults: Grok 4.1 Fast, temp 0.7, 80% citation threshold
 **Agent workflow:**
 1. Classification - determines if follow-up or new research
 2. Clarification - validates US politics query
-3. Supervisor - generates sub-queries, manages research cycles
-4. Sub-research - parallel search per sub-query
+3. Supervisor - generates sub-queries, manages research cycles (max 3)
+4. Sub-research - executes all sub-queries in parallel per cycle
 5. Synthesis - combines drafts into balanced report
 
 **Data sources:**

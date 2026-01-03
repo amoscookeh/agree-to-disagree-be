@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 from langgraph.config import get_stream_writer
@@ -98,22 +99,13 @@ def _format_results(results: list[dict]) -> str:
     return "\n".join(formatted)
 
 
-async def sub_research_node(state: AgentState) -> dict:
-    writer = get_stream_writer()
-    thread_id = state.get("thread_id", "")
-    cycle = state.get("supervisor_cycle", 1)
-
-    pending = state.get("pending_sub_queries", [])
-    if not pending:
-        logger.warning("sub_research called with no pending sub-queries")
-        return {}
-
-    current_sq: SubQuery = pending[0]
-    remaining = pending[1:]
-
-    sq_id = current_sq["id"]
-    sq_query = current_sq["query"]
-    sq_angle = current_sq["angle"]
+async def _research_single_query(
+    sub_query: SubQuery, thread_id: str, cycle: int, writer
+) -> Draft:
+    """research a single sub-query and return draft"""
+    sq_id = sub_query["id"]
+    sq_query = sub_query["query"]
+    sq_angle = sub_query["angle"]
 
     _emit_progress(
         writer,
@@ -226,11 +218,7 @@ async def sub_research_node(state: AgentState) -> dict:
             f"{total_sources} sources"
         )
 
-        return {
-            "drafts": [draft],
-            "pending_sub_queries": remaining,
-            "current_sub_query": None,
-        }
+        return draft
 
     except Exception as e:
         logger.error(f"sub_research failed for {sq_id}: {e}")
@@ -254,8 +242,36 @@ async def sub_research_node(state: AgentState) -> dict:
             "created_at": datetime.now(UTC).isoformat(),
         }
 
-        return {
-            "drafts": [fallback_draft],
-            "pending_sub_queries": remaining,
-            "current_sub_query": None,
-        }
+        return fallback_draft
+
+
+async def sub_research_node(state: AgentState) -> dict:
+    """process all pending sub-queries in parallel"""
+    writer = get_stream_writer()
+    thread_id = state.get("thread_id", "")
+    cycle = state.get("supervisor_cycle", 1)
+
+    pending = state.get("pending_sub_queries", [])
+    if not pending:
+        logger.warning("sub_research called with no pending sub-queries")
+        return {}
+
+    _emit_progress(
+        writer,
+        "sub_research",
+        "starting",
+        f"researching {len(pending)} sub-queries in parallel...",
+        details={"sub_query_count": len(pending), "cycle": cycle},
+    )
+
+    tasks = [_research_single_query(sq, thread_id, cycle, writer) for sq in pending]
+    drafts = await asyncio.gather(*tasks)
+
+    logger.info(
+        f"sub_research completed {len(drafts)} drafts in parallel for cycle {cycle}"
+    )
+
+    return {
+        "drafts": list(drafts),
+        "pending_sub_queries": [],
+    }

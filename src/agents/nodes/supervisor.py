@@ -56,7 +56,7 @@ decide whether:
 2. or we need more research on specific gaps
 
 if more research is needed, suggest new sub-queries focusing on gaps.
-max cycles allowed: 5, current cycle: {cycle}
+max cycles allowed: 3, current cycle: {cycle}
 
 respond with:
 - has_sufficient_info: true if ready for synthesis, false if need more research
@@ -218,7 +218,7 @@ async def supervisor_node(state: AgentState) -> dict:
             details={"draft_count": len(drafts), "cycle": new_cycle},
         )
 
-        if new_cycle >= 5:
+        if new_cycle >= 3:
             logger.info(
                 f"supervisor reached max cycles ({new_cycle}), forcing synthesis"
             )

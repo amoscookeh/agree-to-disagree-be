@@ -49,7 +49,7 @@ def _route_after_supervisor(state: AgentState) -> str:
         )
         return "sub_research"
 
-    if ready or cycle >= 5:
+    if ready or cycle >= 3:
         logger.info(f"supervisor ready for synthesis (ready={ready}, cycle={cycle})")
         return "synthesis"
 
