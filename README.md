@@ -45,6 +45,17 @@ uv run pytest tests/unit/test_llm.py -v
 uv run pytest --cov=src
 ```
 
+### Evaluation
+
+evaluate research quality using llm-as-judge:
+
+```bash
+uv run python scripts/evaluate.py        # run full evaluation
+uv run python scripts/test_evaluators.py # quick test with mock data
+```
+
+see `scripts/README.md` for detailed evaluation documentation.
+
 ## Features
 
 - Multi-source research across left/right/academic outlets
