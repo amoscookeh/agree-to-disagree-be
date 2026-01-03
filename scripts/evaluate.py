@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepeval import evaluate
 from deepeval.test_case import LLMTestCase
 
 from scripts.evaluators import BalanceMetric, CitationMetric, GroundednessMetric
