@@ -4,7 +4,7 @@ from langgraph.config import get_stream_writer
 from pydantic import BaseModel, Field
 
 from src.agents.llm import llm
-from src.agents.state import AgentState, SubQuery
+from src.agents.state import AgentState, Draft, SubQuery
 from src.utils.logger import logger
 
 
@@ -125,7 +125,7 @@ def _emit_supervisor_decision(
     return event
 
 
-def _format_drafts_summary(drafts: list[dict]) -> str:
+def _format_drafts_summary(drafts: list[Draft]) -> str:
     if not drafts:
         return "No drafts collected yet."
 
