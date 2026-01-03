@@ -32,14 +32,19 @@ def _search_result_to_dict(result) -> dict:
     }
 
 
-def _emit_progress(writer, agent: str, status: str, message: str, **extra):
+def _emit_progress(
+    writer, agent: str, status: str, message: str, details: dict | None = None, **extra
+):
     event = {
         "type": "progress",
-        "agent": agent,
-        "status": status,
-        "message": message,
-        "timestamp": datetime.now(UTC).isoformat(),
-        **extra,
+        "data": {
+            "agent": agent,
+            "status": status,
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **({"details": details} if details else {}),
+            **extra,
+        },
     }
     if writer:
         writer(event)
@@ -51,41 +56,67 @@ async def research_node(state: AgentState) -> dict:
     query = state.get("refined_query") or state.get("query", "")
 
     if not query:
-        _emit_progress(writer, "research", "error", "No query provided for research")
+        _emit_progress(
+            writer,
+            "research",
+            "error",
+            "No query provided for research",
+            details={"error": "missing query"},
+        )
         return {"error": "no query provided"}
 
-    _emit_progress(writer, "research", "starting", f"Starting research for: {query}")
+    _emit_progress(
+        writer,
+        "research",
+        "starting",
+        "Starting research for query",
+        details={"query": query, "stage": "initialization"},
+    )
 
     registry = _create_registry()
     sources = registry.list_sources()
+    left_sources = [s for s in sources if s["lean"] == "left"]
+    right_sources = [s for s in sources if s["lean"] == "right"]
 
     _emit_progress(
         writer,
         "research",
         "searching",
-        "Searching all data sources in parallel...",
+        f"Searching {len(sources)} data sources in parallel",
+        details={
+            "query_sent": query,
+            "left_sources": [s["name"] for s in left_sources],
+            "right_sources": [s["name"] for s in right_sources],
+        },
         sources_searched=[s["name"] for s in sources],
     )
 
     try:
-        left_sources = [s for s in sources if s["lean"] == "left"]
-        right_sources = [s for s in sources if s["lean"] == "right"]
+        for source in left_sources:
+            _emit_progress(
+                writer,
+                "left_research",
+                "searching",
+                f"Searching {source['name']}",
+                details={
+                    "source": source["name"],
+                    "query_sent": query,
+                    "lean": "left",
+                },
+            )
 
-        _emit_progress(
-            writer,
-            "left_research",
-            "searching",
-            f"Searching {len(left_sources)} left-leaning sources...",
-            sources=[s["name"] for s in left_sources],
-        )
-
-        _emit_progress(
-            writer,
-            "right_research",
-            "searching",
-            f"Searching {len(right_sources)} right-leaning sources...",
-            sources=[s["name"] for s in right_sources],
-        )
+        for source in right_sources:
+            _emit_progress(
+                writer,
+                "right_research",
+                "searching",
+                f"Searching {source['name']}",
+                details={
+                    "source": source["name"],
+                    "query_sent": query,
+                    "lean": "right",
+                },
+            )
 
         all_results = await registry.search_all(query, max_results=5)
 
@@ -102,6 +133,11 @@ async def research_node(state: AgentState) -> dict:
             "left_research",
             "complete",
             f"Found {len(left_results)} results from left-leaning sources",
+            details={
+                "result_count": len(left_results),
+                "sample_titles": [r["title"][:60] for r in left_results[:3]],
+                "sources_with_results": list({r["source_name"] for r in left_results}),
+            },
             results_count=len(left_results),
         )
 
@@ -110,6 +146,11 @@ async def research_node(state: AgentState) -> dict:
             "right_research",
             "complete",
             f"Found {len(right_results)} results from right-leaning sources",
+            details={
+                "result_count": len(right_results),
+                "sample_titles": [r["title"][:60] for r in right_results[:3]],
+                "sources_with_results": list({r["source_name"] for r in right_results}),
+            },
             results_count=len(right_results),
         )
 
@@ -123,7 +164,13 @@ async def research_node(state: AgentState) -> dict:
             writer,
             "research",
             "complete",
-            f"Found {total_results} results across all sources",
+            f"Research complete - found {total_results} total results",
+            details={
+                "left_count": len(left_results),
+                "right_count": len(right_results),
+                "academic_count": len(academic_results),
+                "total_count": total_results,
+            },
             results_count=total_results,
         )
 
@@ -136,7 +183,13 @@ async def research_node(state: AgentState) -> dict:
 
     except Exception as e:
         logger.error(f"research node error: {e}")
-        _emit_progress(writer, "research", "error", f"Research failed: {e!s}")
+        _emit_progress(
+            writer,
+            "research",
+            "error",
+            "Research failed",
+            details={"error": str(e), "query": query},
+        )
         return {
             "left_results": [],
             "right_results": [],

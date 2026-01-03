@@ -38,14 +38,19 @@ class SynthesisReport(BaseModel):
     uncertainties: list[str]
 
 
-def _emit_progress(writer, agent: str, status: str, message: str, **extra):
+def _emit_progress(
+    writer, agent: str, status: str, message: str, details: dict | None = None, **extra
+):
     event = {
         "type": "progress",
-        "agent": agent,
-        "status": status,
-        "message": message,
-        "timestamp": datetime.now(UTC).isoformat(),
-        **extra,
+        "data": {
+            "agent": agent,
+            "status": status,
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **({"details": details} if details else {}),
+            **extra,
+        },
     }
     if writer:
         writer(event)
@@ -115,13 +120,23 @@ async def synthesis_node(state: AgentState) -> dict:
         writer,
         "synthesis",
         "starting",
-        f"Synthesizing report from {total_results} sources...",
+        "Analyzing sources for balanced perspectives",
+        details={
+            "left_sources": len(left_results),
+            "right_sources": len(right_results),
+            "academic_sources": len(academic_results),
+            "total_sources": total_results,
+        },
     )
 
     if total_results == 0:
         logger.warning("synthesis called with no research results")
         _emit_progress(
-            writer, "synthesis", "error", "No research results to synthesize"
+            writer,
+            "synthesis",
+            "error",
+            "No research results to synthesize",
+            details={"error": "empty results", "query": query},
         )
 
         return {
@@ -132,8 +147,24 @@ async def synthesis_node(state: AgentState) -> dict:
     _emit_progress(
         writer,
         "synthesis",
+        "processing",
+        "Extracting claims and evidence from sources",
+        details={
+            "left_sources": len(left_results),
+            "right_sources": len(right_results),
+            "stage": "claim_extraction",
+        },
+    )
+
+    _emit_progress(
+        writer,
+        "synthesis",
         "analyzing",
-        "Generating balanced analysis with LLM...",
+        "Generating balanced analysis with LLM",
+        details={
+            "model": "structured output",
+            "task": "synthesize opposing perspectives",
+        },
     )
 
     prompt = SYNTHESIS_PROMPT.format(
@@ -159,6 +190,12 @@ async def synthesis_node(state: AgentState) -> dict:
             "synthesis",
             "complete",
             f"Report generated with {len(citations)} citations",
+            details={
+                "citation_count": len(citations),
+                "agreements_found": len(report.agreements),
+                "disagreements_found": len(report.disagreements),
+                "uncertainties_noted": len(report.uncertainties),
+            },
             citation_count=len(citations),
         )
 
@@ -179,14 +216,6 @@ async def synthesis_node(state: AgentState) -> dict:
             "uncertainties": report.uncertainties,
         }
 
-        _emit_progress(
-            writer,
-            "report",
-            "complete",
-            "Research report ready",
-            report=report_dict,
-        )
-
         return {
             "summary": report.summary,
             "claim_a": report_dict["claim_a"],
@@ -201,7 +230,13 @@ async def synthesis_node(state: AgentState) -> dict:
 
     except Exception as e:
         logger.error(f"synthesis failed: {e}")
-        _emit_progress(writer, "synthesis", "error", f"Synthesis failed: {e!s}")
+        _emit_progress(
+            writer,
+            "synthesis",
+            "error",
+            "Synthesis failed",
+            details={"error": str(e), "query": query},
+        )
 
         return {
             "error": str(e),

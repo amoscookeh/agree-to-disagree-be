@@ -1,18 +1,32 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import health_router, research_router
 from src.api.routes.auth import router as auth_router
+from src.api.routes.chat import router as chat_router
+from src.api.routes.threads import router as threads_router
 from src.api.routes.waitlist import router as waitlist_router
 from src.config import settings
+from src.db.checkpointer import close_checkpointer, init_checkpointer
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_checkpointer()
+    yield
+    await close_checkpointer()
+
 
 app = FastAPI(
     title="Agree to Disagree API",
     description="Backend API for balanced political research",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -31,6 +45,8 @@ app.include_router(health_router)
 app.include_router(research_router)
 app.include_router(auth_router)
 app.include_router(waitlist_router)
+app.include_router(chat_router)
+app.include_router(threads_router)
 
 
 @app.get("/")
