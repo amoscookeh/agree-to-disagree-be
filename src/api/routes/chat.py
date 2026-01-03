@@ -51,7 +51,9 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
         .order("created_at")
         .execute()
     )
-    messages = cast(list[dict[str, Any]], messages_result.data) if messages_result.data else []
+    messages = (
+        cast(list[dict[str, Any]], messages_result.data) if messages_result.data else []
+    )
 
     state = None
     history = []

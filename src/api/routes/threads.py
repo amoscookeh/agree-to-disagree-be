@@ -114,7 +114,11 @@ async def get_thread(
         .order("created_at")
         .execute()
     )
-    messages = cast(list[dict[str, Any]], messages_response.data) if messages_response.data else []
+    messages = (
+        cast(list[dict[str, Any]], messages_response.data)
+        if messages_response.data
+        else []
+    )
 
     state = None
     history = []

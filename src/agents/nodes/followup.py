@@ -46,10 +46,22 @@ def _format_report(state: AgentState) -> str:
         return "No report available."
 
     summary = report.get("summary", "")
-    claim_a = report.get("claim_a", {}) if isinstance(report.get("claim_a"), dict) else {}
-    claim_b = report.get("claim_b", {}) if isinstance(report.get("claim_b"), dict) else {}
-    agreements = report.get("agreements", []) if isinstance(report.get("agreements"), list) else []
-    disagreements = report.get("disagreements", []) if isinstance(report.get("disagreements"), list) else []
+    claim_a = (
+        report.get("claim_a", {}) if isinstance(report.get("claim_a"), dict) else {}
+    )
+    claim_b = (
+        report.get("claim_b", {}) if isinstance(report.get("claim_b"), dict) else {}
+    )
+    agreements = (
+        report.get("agreements", [])
+        if isinstance(report.get("agreements"), list)
+        else []
+    )
+    disagreements = (
+        report.get("disagreements", [])
+        if isinstance(report.get("disagreements"), list)
+        else []
+    )
 
     formatted = f"""
 Report Summary:
