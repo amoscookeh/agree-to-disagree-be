@@ -1,0 +1,61 @@
+[
+  {
+    "query": "What are perspectives on raising the federal minimum wage to $15?",
+    "scores": {
+      "balance": {
+        "score": 0.85,
+        "reasoning": "Both progressive and conservative perspectives are well represented with 3 evidence items each. The report includes agreements, disagreements, and uncertainties, showing balanced coverage.",
+        "success": true
+      },
+      "groundedness": {
+        "score": 0.92,
+        "reasoning": "All claims can be traced to the provided sources. Left perspective claims are supported by Economic Policy Institute, Center for American Progress, and UC Berkeley. Right perspective claims are supported by NFIB, AEI, and Heritage Foundation.",
+        "success": true
+      },
+      "citation": {
+        "score": 0.88,
+        "reasoning": "6 out of 6 evidence items have proper citations with source names and URLs. All factual claims are properly attributed.",
+        "success": true
+      },
+      "average": 0.88
+    },
+    "report_metadata": {
+      "citations_count": 6,
+      "agreements_count": 2,
+      "disagreements_count": 1,
+      "uncertainties_count": 2,
+      "cycles_used": 2
+    },
+    "timestamp": "2025-01-03T10:30:00.000Z"
+  },
+  {
+    "query": "How do different groups view the Affordable Care Act?",
+    "scores": {
+      "balance": {
+        "score": 0.78,
+        "reasoning": "Both perspectives represented but conservative side has slightly more evidence (4 vs 3 items). Overall still balanced.",
+        "success": true
+      },
+      "groundedness": {
+        "score": 0.85,
+        "reasoning": "Most claims grounded in sources. One claim about cost savings lacks specific source attribution.",
+        "success": true
+      },
+      "citation": {
+        "score": 0.82,
+        "reasoning": "7 out of 8 claims properly cited. One claim missing URL.",
+        "success": true
+      },
+      "average": 0.82
+    },
+    "report_metadata": {
+      "citations_count": 7,
+      "agreements_count": 1,
+      "disagreements_count": 3,
+      "uncertainties_count": 1,
+      "cycles_used": 1
+    },
+    "timestamp": "2025-01-03T10:35:00.000Z"
+  }
+]
+

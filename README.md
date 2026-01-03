@@ -43,16 +43,18 @@ Run specific tests:
 ```bash
 uv run pytest tests/unit/test_llm.py -v
 uv run pytest --cov=src
+uv run pytest -m benchmark -v           # run LLM evaluation benchmarks
 ```
 
 ## Features
 
-- Multi-source research across left/right/academic outlets
+- Multi-source research across left/right outlets
+- Supervisor-driven deep research with sub-queries
 - LLM synthesis via OpenRouter (Grok 4.1)
 - Server-sent events for real-time progress
-- Citation tracking (80% minimum threshold)
+- Citation tracking with source attribution
 - Conversation memory via LangGraph checkpointer
-- Agent workflow: clarification → research → synthesis → quality check
+- Follow-up questions on existing research
 
 ## Configuration
 
@@ -75,10 +77,11 @@ Defaults: Grok 4.1 Fast, temp 0.7, 80% citation threshold
 ## Architecture
 
 **Agent workflow:**
-1. Clarification - validates US politics query
-2. Research - parallel search (left/right/academic)
-3. Synthesis - generates balanced report
-4. Quality Check - validates citations
+1. Classification - determines if follow-up or new research
+2. Clarification - validates US politics query
+3. Supervisor - generates sub-queries, manages research cycles
+4. Sub-research - parallel search per sub-query
+5. Synthesis - combines drafts into balanced report
 
 **Data sources:**
 - Left: Guardian, NYT

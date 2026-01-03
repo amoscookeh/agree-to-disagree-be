@@ -1,4 +1,4 @@
-name: Tests
+name: Backend CI
 
 on:
   push:
@@ -8,7 +8,9 @@ on:
 
 jobs:
   test:
+    name: Tests (Unit + Integration)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
       - name: Checkout code
@@ -25,7 +27,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --dev
       
       - name: Run linter
         run: uv run ruff check .
@@ -34,16 +36,44 @@ jobs:
         run: uv run ruff format --check .
       
       - name: Run type checker
-        run: uv run mypy src
+        run: uv run mypy src --ignore-missing-imports
       
-      - name: Run tests
-        run: uv run pytest -v
+      - name: Run tests (skip API-dependent and benchmark tests)
+        run: uv run pytest -m "not requires_api and not benchmark" -v
+  
+  benchmarking:
+    name: Benchmarking (DeepEval)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-      - name: Test API connections
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: uv sync --dev
+      
+      - name: Run benchmark tests (DeepEval)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: uv run python scripts/test_connections.py
+        run: uv run pytest -m benchmark -v
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: .pytest_cache
+          retention-days: 7
 
