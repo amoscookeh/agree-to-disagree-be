@@ -1,34 +1,37 @@
 # Agree to Disagree - Backend
 
-Backend API for balanced political research. Searches news sources across the political spectrum and returns cited reports via streaming.
+Backend API for balanced political research. Searches news sources across the political spectrum and synthesizes cited reports via streaming.
 
 ## Example
 
 ```bash
+# start server
 ./scripts/dev.sh start
 
+# make a research request
 curl -N -X POST http://localhost:8000/api/research \
   -H "Content-Type: application/json" \
   -d '{"query": "What are perspectives on immigration policy?"}'
+
+# returns SSE stream with progress events and final report
 ```
 
 API docs: http://localhost:8000/docs
 
-## Quick Start
-
-```bash
-uv sync
-cp .env.example .env  # add API keys
-./scripts/dev.sh start
-```
-
 ## Installation
 
-**Requirements:** Python 3.11+, UV, OpenRouter API key, Supabase account
+**Requirements:** Python 3.11+, [UV](https://docs.astral.sh/uv/), OpenRouter API key, Supabase account
 
 ```bash
+# install dependencies
 uv sync
-cp .env.example .env  # add API keys
+
+# configure environment
+cp .env.example .env
+# edit .env with your API keys
+
+# setup database
+# copy scripts/schema.sql into Supabase SQL Editor and run
 ```
 
 ## Usage
@@ -45,22 +48,19 @@ cp .env.example .env  # add API keys
 ### Testing
 
 ```bash
-uv run pytest                       # all tests
-uv run pytest --cov=src            # with coverage
-uv run pytest tests/unit/test_llm.py -v  # specific file
+uv run pytest                              # all tests
+uv run pytest --cov=src                    # with coverage
+uv run pytest tests/unit/test_llm.py -v   # specific file
 ```
-
-### Database Setup
-
-Copy `scripts/schema.sql` into Supabase SQL Editor or run `uv run python scripts/test_connections.py`
 
 ## Features
 
-- Multi-source research (left/right/academic sources in parallel)
-- LLM synthesis (balanced reports via OpenRouter)
-- Streaming API (SSE for real-time progress)
-- Citation tracking (every claim linked to source)
-- Agent workflow (LangGraph orchestrates clarification → research → synthesis → quality check)
+- **Multi-source research** - parallel search across left/right/academic sources
+- **LLM synthesis** - balanced reports via OpenRouter
+- **Streaming API** - SSE for real-time progress updates
+- **Citation tracking** - every claim linked to source
+- **Conversation memory** - LangGraph checkpointer persists thread state
+- **Agent workflow** - clarification → research → synthesis → quality check
 
 ## Configuration
 
@@ -116,7 +116,6 @@ MVP in development. API may change.
 - US politics only
 - English only
 - Rate limits: Guardian (500/day), NYT (500/day)
-- No conversation memory
 
 ## Contributing
 

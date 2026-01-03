@@ -1,0 +1,193 @@
+from datetime import UTC, datetime
+
+from langgraph.config import get_stream_writer
+from pydantic import BaseModel
+
+from src.agents.llm import llm
+from src.agents.state import AgentState
+from src.utils.logger import logger
+
+
+class MessageClassification(BaseModel):
+    message_type: str  # "research_prompt" or "follow_up_question"
+    confidence: float
+    reasoning: str
+
+
+def _emit_progress(writer, agent: str, status: str, message: str, **extra):
+    event = {
+        "type": "progress",
+        "agent": agent,
+        "status": status,
+        "message": message,
+        "timestamp": datetime.now(UTC).isoformat(),
+        **extra,
+    }
+    if writer:
+        writer(event)
+    return event
+
+
+def _format_conversation_history(messages: list[dict]) -> str:
+    """format conversation history for llm context"""
+    if not messages:
+        return "No previous conversation."
+
+    formatted = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        formatted.append(f"{role}: {content[:200]}...")  # truncate long messages
+
+    return "\n".join(formatted[-10:])  # last 10 messages
+
+
+def _format_report(state: AgentState) -> str:
+    """format the generated report if it exists"""
+    report = state.get("report")
+    if not report:
+        return "No report generated yet."
+
+    summary = report.get("summary", "")
+    claim_a = report.get("claim_a", {})
+    claim_b = report.get("claim_b", {})
+
+    formatted = f"""
+Previous Report Summary:
+{summary}
+
+Left Perspective: {claim_a.get('title', 'N/A')}
+Right Perspective: {claim_b.get('title', 'N/A')}
+
+Agreements: {len(report.get('agreements', []))} points
+Disagreements: {len(report.get('disagreements', []))} points
+"""
+    return formatted.strip()
+
+
+async def classification_node(state: AgentState) -> dict:
+    """
+    classify incoming message as research prompt or follow-up question
+
+    if first message: always research_prompt
+    if subsequent: use llm to classify based on conversation context
+    """
+    writer = get_stream_writer()
+    query = state.get("query", "").strip()
+    messages = state.get("messages", [])
+
+    _emit_progress(
+        writer,
+        "classification",
+        "starting",
+        "classifying message type...",
+        query=query,
+    )
+
+    # if first message in conversation, always treat as research prompt
+    if not messages or len(messages) == 0:
+        logger.info("first message in conversation, classifying as research_prompt")
+
+        _emit_progress(
+            writer,
+            "classification",
+            "complete",
+            "classified as new research prompt",
+            message_type="research_prompt",
+            is_first_message=True,
+        )
+
+        return {
+            "message_type": "research_prompt",
+            "current_agent": "classification",
+        }
+
+    # subsequent messages: use llm to classify
+    _emit_progress(
+        writer,
+        "classification",
+        "analyzing",
+        "using llm to classify message type...",
+        query=query,
+        tool_call={
+            "tool": "llm_classify_message",
+            "model": "openai/gpt-4o",
+            "query": query,
+            "context_messages": len(messages),
+            "output_schema": "MessageClassification",
+        },
+    )
+
+    conversation_history = _format_conversation_history(messages)
+    report_context = _format_report(state)
+
+    prompt = f"""you are a message classifier for a political research assistant.
+
+given the conversation history and current message, determine if this is:
+1. "research_prompt" - a new research question requiring full research workflow
+2. "follow_up_question" - a follow-up question about the previous research
+
+conversation history:
+{conversation_history}
+
+{report_context}
+
+current message: {query}
+
+guidelines:
+- if asking about specific details from the report → follow_up_question
+- if asking for clarification or more info on a topic → follow_up_question
+- if introducing a completely new topic → research_prompt
+- if asking to compare or analyze the report → follow_up_question
+- if asking "what about X" where X is related to report → follow_up_question
+
+respond in json format with:
+{{
+    "message_type": "research_prompt" or "follow_up_question",
+    "confidence": 0.0-1.0,
+    "reasoning": "brief explanation of classification"
+}}
+"""
+
+    try:
+        structured_llm = llm.with_structured_output(MessageClassification)
+        classification = await structured_llm.ainvoke(prompt)
+
+        assert isinstance(classification, MessageClassification)
+
+        logger.info(
+            f"message classified as {classification.message_type} "
+            f"(confidence: {classification.confidence:.2f})"
+        )
+
+        _emit_progress(
+            writer,
+            "classification",
+            "complete",
+            f"classified as {classification.message_type}",
+            message_type=classification.message_type,
+            confidence=classification.confidence,
+            reasoning=classification.reasoning,
+        )
+
+        return {
+            "message_type": classification.message_type,
+            "current_agent": "classification",
+        }
+
+    except Exception as e:
+        logger.error(f"classification failed: {e}, defaulting to research_prompt")
+
+        _emit_progress(
+            writer,
+            "classification",
+            "error",
+            f"classification failed: {e}, defaulting to research_prompt",
+        )
+
+        # fallback to research prompt on error
+        return {
+            "message_type": "research_prompt",
+            "current_agent": "classification",
+        }
+

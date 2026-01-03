@@ -1,3 +1,4 @@
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -19,7 +20,9 @@ def _should_continue_after_clarification(state: AgentState) -> str:
     return "research"
 
 
-def build_research_graph() -> CompiledStateGraph:
+def build_research_graph(
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph:
     builder = StateGraph(AgentState)
 
     builder.add_node("clarification", clarification_node)
@@ -40,7 +43,7 @@ def build_research_graph() -> CompiledStateGraph:
     builder.add_edge("research", "synthesis")
     builder.add_edge("synthesis", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
 
 
 research_graph = build_research_graph()

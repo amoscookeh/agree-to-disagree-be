@@ -134,7 +134,7 @@ class TestResearchNode:
 
             assert mock_stream_writer.call_count >= 3
             calls = [call[0][0] for call in mock_stream_writer.call_args_list]
-            statuses = [c["status"] for c in calls]
+            statuses = [c["data"]["status"] for c in calls]
             assert "starting" in statuses
             assert "complete" in statuses
 
@@ -297,7 +297,7 @@ class TestClarificationNode:
 
             assert mock_stream_writer.call_count >= 2
             calls = [call[0][0] for call in mock_stream_writer.call_args_list]
-            assert calls[0]["agent"] == "clarification"
+            assert calls[0]["data"]["agent"] == "clarification"
 
     @pytest.mark.asyncio
     async def test_clarification_llm_returns_questions(self, mock_stream_writer):

@@ -16,15 +16,20 @@ class ClarificationAnalysis(BaseModel):
     suggestions: list[str] = []
 
 
-def _emit_progress(writer, agent: str, status: str, message: str, **extra):
+def _emit_progress(writer, agent: str, status: str, message: str, details: dict | None = None, **extra):
     event = {
-        "agent": agent,
-        "status": status,
-        "message": message,
-        "timestamp": datetime.now(UTC).isoformat(),
-        **extra,
+        "type": "progress",
+        "data": {
+            "agent": agent,
+            "status": status,
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **({"details": details} if details else {}),
+            **extra,
+        },
     }
-    writer(event)
+    if writer:
+        writer(event)
 
 
 async def clarification_node(state: AgentState) -> dict:
@@ -37,15 +42,28 @@ async def clarification_node(state: AgentState) -> dict:
     clarification_response = state.get("clarification_response")
 
     writer = get_stream_writer()
-    _emit_progress(writer, "clarification", "starting", "analyzing query...")
+    _emit_progress(
+        writer,
+        "clarification",
+        "starting",
+        "Analyzing query specificity and political relevance",
+        details={"original_query": query},
+    )
 
-    # if user provided clarification, incorporate it
     if clarification_response:
         refined_query = f"{query} - specifically: {clarification_response}"
         logger.info(f"query refined with clarification: {refined_query}")
 
         _emit_progress(
-            writer, "clarification", "complete", "query refined with user clarification"
+            writer,
+            "clarification",
+            "complete",
+            "Query refined with user clarification",
+            details={
+                "original_query": query,
+                "refined_query": refined_query,
+                "clarification_applied": clarification_response,
+            },
         )
 
         return {
@@ -53,13 +71,23 @@ async def clarification_node(state: AgentState) -> dict:
             "needs_clarification": False,
         }
 
-    # basic heuristic checks
     if _obviously_needs_clarification(query):
         questions = _generate_clarification_questions(query)
         refined_query = _basic_query_refinement(query)
 
         logger.info(f"query obviously vague: {query}")
-        _emit_progress(writer, "clarification", "complete", "query needs clarification")
+        _emit_progress(
+            writer,
+            "clarification",
+            "complete",
+            "Query needs clarification - too vague or short",
+            details={
+                "original_query": query,
+                "refined_query": refined_query,
+                "analysis": "Query detected as vague via heuristics",
+                "questions_generated": len(questions),
+            },
+        )
 
         return {
             "refined_query": refined_query,
@@ -67,9 +95,15 @@ async def clarification_node(state: AgentState) -> dict:
             "clarification_questions": questions,
         }
 
-    # use llm for deeper analysis
     _emit_progress(
-        writer, "clarification", "analyzing", "using llm to analyze query clarity..."
+        writer,
+        "clarification",
+        "analyzing",
+        "Using LLM to analyze query clarity and scope",
+        details={
+            "original_query": query,
+            "analysis": "Checking if query is specific enough for balanced research",
+        },
     )
 
     try:
@@ -78,7 +112,6 @@ async def clarification_node(state: AgentState) -> dict:
         prompt = CLARIFICATION_PROMPT.format(query=query)
         analysis = await structured_llm.ainvoke(prompt)
 
-        # type assertion for mypy
         assert isinstance(analysis, ClarificationAnalysis)
 
         logger.info(f"llm analysis: needs_clarification={analysis.needs_clarification}")
@@ -87,7 +120,14 @@ async def clarification_node(state: AgentState) -> dict:
             writer,
             "clarification",
             "complete",
-            f"query {'needs clarification' if analysis.needs_clarification else 'is clear'}",
+            f"Query {'needs clarification' if analysis.needs_clarification else 'is clear - proceeding to research'}",
+            details={
+                "original_query": query,
+                "refined_query": analysis.refined_query,
+                "needs_clarification": analysis.needs_clarification,
+                "questions": analysis.questions if analysis.needs_clarification else [],
+                "suggestions": analysis.suggestions if analysis.suggestions else [],
+            },
         )
 
         return {
@@ -96,14 +136,20 @@ async def clarification_node(state: AgentState) -> dict:
             "clarification_questions": analysis.questions
             if analysis.needs_clarification
             else [],
+            "clarification_suggestions": analysis.suggestions,
         }
 
     except Exception as e:
         logger.error(f"llm analysis failed: {e}")
-        # fallback to basic refinement
         refined_query = _basic_query_refinement(query)
 
-        _emit_progress(writer, "clarification", "error", f"llm analysis failed: {e}")
+        _emit_progress(
+            writer,
+            "clarification",
+            "error",
+            "LLM analysis failed, using basic refinement",
+            details={"error": str(e), "fallback_query": refined_query},
+        )
 
         return {
             "refined_query": refined_query,
