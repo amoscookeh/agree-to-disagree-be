@@ -14,6 +14,7 @@ from src.data_sources.right_leaning.ny_post_rss import NYPostRSSSource
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_api
 @pytest.mark.skipif(
     not settings.guardian_api_key, reason="guardian api key not configured"
 )
@@ -35,6 +36,7 @@ async def test_guardian_search_and_extract():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_api
 @pytest.mark.skipif(not settings.nyt_api_key, reason="nyt api key not configured")
 async def test_nyt_search_and_extract():
     """test nyt can find relevant articles and extract content"""
@@ -59,6 +61,7 @@ async def test_nyt_search_and_extract():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_api
 @pytest.mark.skipif(not settings.newsapi_key, reason="newsapi key not configured")
 async def test_newsapi_search_and_extract():
     """test newsapi can find relevant articles from conservative sources"""
@@ -131,6 +134,7 @@ async def test_registry_parallel_search():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_api
 async def test_content_extraction_quality():
     """test that extracted content is useful for agent analysis"""
     sources_to_test = []
@@ -171,6 +175,7 @@ async def test_content_extraction_quality():
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_api
 async def test_search_relevance():
     """test that search results are relevant to query"""
     if not settings.guardian_api_key:

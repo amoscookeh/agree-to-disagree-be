@@ -7,6 +7,8 @@ from deepeval.test_case import LLMTestCase
 
 from scripts.evaluators import BalanceMetric, CitationMetric, GroundednessMetric
 
+pytestmark = pytest.mark.benchmark
+
 
 @pytest.fixture
 def mock_report():
