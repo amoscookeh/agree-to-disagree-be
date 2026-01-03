@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepeval import evaluate
 from deepeval.test_case import LLMTestCase
 
 from scripts.evaluators import BalanceMetric, CitationMetric, GroundednessMetric
@@ -58,7 +57,7 @@ async def run_research(query: str) -> dict | None:
         return None
 
 
-async def evaluate_report(query: str, report: dict) -> dict:
+def evaluate_report(query: str, report: dict) -> dict:
     """evaluate report using deepeval metrics"""
 
     test_case = LLMTestCase(input=query, actual_output=json.dumps(report))
@@ -69,7 +68,8 @@ async def evaluate_report(query: str, report: dict) -> dict:
         CitationMetric(threshold=0.8),
     ]
 
-    evaluate(test_cases=[test_case], metrics=metrics)
+    for metric in metrics:
+        metric.measure(test_case)
 
     scores = {
         "balance": {
@@ -115,7 +115,7 @@ async def run_evaluation():
             )
             continue
 
-        scores = await evaluate_report(query, report)
+        scores = evaluate_report(query, report)
 
         results.append(
             {

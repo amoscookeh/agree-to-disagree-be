@@ -40,11 +40,11 @@ jobs:
       
       - name: Run tests (skip API-dependent and benchmark tests)
         run: uv run pytest -m "not requires_api and not benchmark" -v
-  
-  benchmarking:
-    name: Benchmarking (DeepEval)
+
+  evaluation:
+    name: Agent Evaluation (LLM-as-Judge)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -64,22 +64,110 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
       
-      - name: Run benchmark tests (DeepEval)
+      - name: Run agent evaluation
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GUARDIAN_API_KEY: ${{ secrets.GUARDIAN_API_KEY }}
           NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         run: |
-          mkdir -p benchmark-results
-          uv run pytest -m benchmark -v --json-report --json-report-file=benchmark-results/pytest-report.json
+          mkdir -p evaluation-results
+          uv run python scripts/evaluate.py
+          cp scripts/results/eval_results_*.json evaluation-results/ || echo "no evaluation results generated"
       
-      - name: Upload benchmark results
+      - name: Upload evaluation results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: benchmark-results-${{ github.sha }}
-          path: benchmark-results/
-          retention-days: 7
+          name: evaluation-results-${{ github.sha }}
+          path: evaluation-results/
+          retention-days: 30
+      
+      - name: Comment evaluation summary on commit
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const resultsDir = 'scripts/results';
+            let latestFile = null;
+            let latestTime = 0;
+            
+            try {
+              const files = fs.readdirSync(resultsDir);
+              for (const file of files) {
+                if (file.startsWith('eval_results_') && file.endsWith('.json')) {
+                  const filePath = path.join(resultsDir, file);
+                  const stat = fs.statSync(filePath);
+                  if (stat.mtimeMs > latestTime) {
+                    latestTime = stat.mtimeMs;
+                    latestFile = filePath;
+                  }
+                }
+              }
+              
+              if (!latestFile) {
+                console.log('No evaluation results found');
+                return;
+              }
+              
+              const results = JSON.parse(fs.readFileSync(latestFile, 'utf8'));
+              const successfulResults = results.filter(r => r.scores);
+              
+              if (successfulResults.length === 0) {
+                console.log('No successful evaluations');
+                return;
+              }
+              
+              const avgBalance = successfulResults.reduce((sum, r) => sum + r.scores.balance.score, 0) / successfulResults.length;
+              const avgGroundedness = successfulResults.reduce((sum, r) => sum + r.scores.groundedness.score, 0) / successfulResults.length;
+              const avgCitation = successfulResults.reduce((sum, r) => sum + r.scores.citation.score, 0) / successfulResults.length;
+              const avgTotal = (avgBalance + avgGroundedness + avgCitation) / 3;
+              
+              const perQueryResults = successfulResults.map(r => {
+                const q = r.query.substring(0, 60);
+                const b = r.scores.balance.score.toFixed(2);
+                const g = r.scores.groundedness.score.toFixed(2);
+                const c = r.scores.citation.score.toFixed(2);
+                const bStatus = r.scores.balance.success ? 'pass' : 'fail';
+                const gStatus = r.scores.groundedness.success ? 'pass' : 'fail';
+                const cStatus = r.scores.citation.success ? 'pass' : 'fail';
+                return `**${q}...**\n- Balance: ${b} (${bStatus})\n- Groundedness: ${g} (${gStatus})\n- Citation: ${c} (${cStatus})`;
+              }).join('\n\n');
+              
+              const body = [
+                '## Agent Evaluation Results',
+                '',
+                `**Commit:** ${context.sha.substring(0, 7)}`,
+                `**Queries Evaluated:** ${successfulResults.length}/${results.length}`,
+                '',
+                '### Overall Scores',
+                '| Metric | Score | Status |',
+                '|--------|-------|--------|',
+                `| Balance | ${avgBalance.toFixed(2)} | ${avgBalance >= 0.5 ? 'pass' : 'fail'} |`,
+                `| Groundedness | ${avgGroundedness.toFixed(2)} | ${avgGroundedness >= 0.7 ? 'pass' : 'fail'} |`,
+                `| Citation Coverage | ${avgCitation.toFixed(2)} | ${avgCitation >= 0.8 ? 'pass' : 'fail'} |`,
+                `| **Total Average** | **${avgTotal.toFixed(2)}** | ${avgTotal >= 0.7 ? 'pass' : 'fail'} |`,
+                '',
+                '### Per-Query Results',
+                perQueryResults,
+                '',
+                '---',
+                '*Full results available in workflow artifacts*'
+              ].join('\n');
+              
+              await github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body: body
+              });
+              
+            } catch (error) {
+              console.error('Error processing evaluation results:', error);
+            }
 
