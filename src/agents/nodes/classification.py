@@ -37,9 +37,24 @@ def _format_conversation_history(messages: list[dict]) -> str:
     for msg in messages:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
-        formatted.append(f"{role}: {content[:200]}...")  # truncate long messages
 
-    return "\n".join(formatted[-10:])  # last 10 messages
+        # handle dict content (from database)
+        if isinstance(content, dict):
+            if content.get("type") == "query":
+                content = content.get("query", "")
+            elif content.get("type") == "clarification_response":
+                content = content.get("response", "")
+            elif "answer" in content:
+                content = content.get("answer", "")
+            elif "summary" in content:
+                content = f"[Report: {content.get('summary', '')[:100]}...]"
+            else:
+                content = str(content)
+
+        content_str = str(content)[:200]
+        formatted.append(f"{role}: {content_str}...")
+
+    return "\n".join(formatted[-10:])
 
 
 def _format_report(state: AgentState) -> str:
