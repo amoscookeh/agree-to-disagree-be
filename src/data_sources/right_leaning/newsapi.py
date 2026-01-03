@@ -6,12 +6,12 @@ from src.utils.logger import logger
 
 
 class NewsAPISource(DataSource):
-    """newsapi.org source for fox news and wall street journal"""
+    """newsapi.org source for conservative news outlets"""
 
     def __init__(
         self,
         api_key: str | None = None,
-        sources: str = "fox-news,the-wall-street-journal",
+        sources: str = "fox-news,breitbart-news,the-wall-street-journal,national-review,the-washington-times",
     ):
         super().__init__()
         self._api_key = api_key or settings.newsapi_key
@@ -20,7 +20,7 @@ class NewsAPISource(DataSource):
 
     @property
     def source_name(self) -> str:
-        return "NewsAPI (Fox News, WSJ)"
+        return "NewsAPI (Conservative)"
 
     @property
     def ideological_lean(self) -> IdeologicalLean:

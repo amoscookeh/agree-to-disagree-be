@@ -61,7 +61,7 @@ async def test_nyt_search_and_extract():
 @pytest.mark.asyncio
 @pytest.mark.skipif(not settings.newsapi_key, reason="newsapi key not configured")
 async def test_newsapi_search_and_extract():
-    """test newsapi can find relevant articles from fox news and wsj"""
+    """test newsapi can find relevant articles from conservative sources"""
     source = NewsAPISource()
 
     results = await source.search("economy", max_results=3)
@@ -74,7 +74,16 @@ async def test_newsapi_search_and_extract():
         assert result.snippet, "should have snippet/content"
         assert len(result.snippet) > 20, "snippet should have meaningful content"
         assert result.ideological_lean.value == "right"
-        assert "Fox News" in result.source_name or "Wall Street" in result.source_name
+        conservative_sources = [
+            "Fox News",
+            "Wall Street",
+            "Breitbart",
+            "National Review",
+            "Washington Times",
+        ]
+        assert any(
+            source_name in result.source_name for source_name in conservative_sources
+        )
 
 
 @pytest.mark.asyncio

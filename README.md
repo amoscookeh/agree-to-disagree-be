@@ -1,8 +1,8 @@
 # Agree to Disagree - Backend
 
-Backend API for balanced political research. Searches news sources across the political spectrum and synthesizes cited reports via streaming.
+Backend API for balanced political research across the spectrum.
 
-## Example
+## Quick Start
 
 ```bash
 # start server
@@ -16,27 +16,21 @@ curl -N -X POST http://localhost:8000/api/research \
 # returns SSE stream with progress events and final report
 ```
 
-API docs: http://localhost:8000/docs
+Interactive API docs: http://localhost:8000/docs
 
 ## Installation
 
-**Requirements:** Python 3.11+, [UV](https://docs.astral.sh/uv/), OpenRouter API key, Supabase account
+**Requirements:** Python 3.11+, [UV](https://docs.astral.sh/uv/)
 
 ```bash
-# install dependencies
 uv sync
-
-# configure environment
 cp .env.example .env
-# edit .env with your API keys
-
-# setup database
-# copy scripts/schema.sql into Supabase SQL Editor and run
+# edit .env with your API keys (OpenRouter, Supabase required)
 ```
 
-## Usage
+Setup database by running `scripts/schema.sql` in Supabase SQL Editor.
 
-### Development Server
+## Usage
 
 ```bash
 ./scripts/dev.sh start              # start server
@@ -45,77 +39,60 @@ cp .env.example .env
 ./scripts/dev.sh check-all          # lint + type check
 ```
 
-### Testing
-
+Run specific tests:
 ```bash
-uv run pytest                              # all tests
-uv run pytest --cov=src                    # with coverage
-uv run pytest tests/unit/test_llm.py -v   # specific file
+uv run pytest tests/unit/test_llm.py -v
+uv run pytest --cov=src
 ```
 
 ## Features
 
-- **Multi-source research** - parallel search across left/right/academic sources
-- **LLM synthesis** - balanced reports via OpenRouter
-- **Streaming API** - SSE for real-time progress updates
-- **Citation tracking** - every claim linked to source
-- **Conversation memory** - LangGraph checkpointer persists thread state
-- **Agent workflow** - clarification → research → synthesis → quality check
+- Multi-source research across left/right/academic outlets
+- LLM synthesis via OpenRouter (Grok 4.1)
+- Server-sent events for real-time progress
+- Citation tracking (80% minimum threshold)
+- Conversation memory via LangGraph checkpointer
+- Agent workflow: clarification → research → synthesis → quality check
 
 ## Configuration
 
-Environment variables (see `.env.example`):
-
+Required environment variables:
 ```bash
-OPENROUTER_API_KEY=sk-or-xxx        # required
-SUPABASE_URL=https://xxx.supabase.co  # required
-SUPABASE_KEY=xxx                     # required
-GUARDIAN_API_KEY=xxx                 # optional
-NYT_API_KEY=xxx                      # optional
-NEWSAPI_KEY=xxx                      # optional
+OPENROUTER_API_KEY=sk-or-xxx
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=xxx
 ```
 
-**Defaults:**
+Optional (improves coverage):
+```bash
+GUARDIAN_API_KEY=xxx
+NYT_API_KEY=xxx
+NEWSAPI_KEY=xxx
+```
 
-- Model: `x-ai/grok-4.1-fast`
-- Temperature: 0.7
-- Citation threshold: 80%
+Defaults: Grok 4.1 Fast, temp 0.7, 80% citation threshold
 
 ## Architecture
 
-**Agent Workflow:**
+**Agent workflow:**
+1. Clarification - validates US politics query
+2. Research - parallel search (left/right/academic)
+3. Synthesis - generates balanced report
+4. Quality Check - validates citations
 
-1. Clarification → validates query is US politics, refines phrasing
-2. Research → parallel search across sources
-3. Synthesis → generates balanced report with citations
-4. Quality Check → validates citation coverage
-
-**Data Sources:**
-
+**Data sources:**
 - Left: Guardian, NYT
-- Right: NY Post, NewsAPI
-- Academic: Semantic Scholar, Census (planned)
+- Right: NY Post, Breitbart, Daily Wire, NewsAPI
+- Academic: Semantic Scholar (planned)
 
-**Tech Stack:**
-
-- FastAPI (async web framework)
-- LangGraph (agent orchestration)
-- LangChain (LLM integration)
-- OpenRouter (LLM gateway)
-- Supabase (PostgreSQL)
-- UV (package manager)
+**Stack:** FastAPI, LangGraph, LangChain, OpenRouter, Supabase, UV
 
 ## Project Status
 
-MVP in development. API may change.
+MVP in active development. API is unstable.
 
-**Supported:** Python 3.11+, macOS/Linux
-
-**Limitations:**
-
-- US politics only
-- English only
-- Rate limits: Guardian (500/day), NYT (500/day)
+**Supported:** Python 3.11+, macOS/Linux  
+**Limitations:** US politics only, English only, rate limits apply (Guardian 500/day, NYT 500/day)
 
 ## Contributing
 
