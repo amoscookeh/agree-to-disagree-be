@@ -178,12 +178,41 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             async for chunk in graph.astream(
                 initial_state, config, stream_mode="custom"
             ):
-                if chunk.get("type") == "progress":
+                chunk_type = chunk.get("type", "")
+
+                if chunk_type == "progress":
                     supabase.table("messages").insert(
                         {
                             "query_id": str(query_id),
                             "role": "agent",
                             "content": chunk,
+                        }
+                    ).execute()
+
+                elif chunk_type == "sub_queries":
+                    supabase.table("messages").insert(
+                        {
+                            "query_id": str(query_id),
+                            "role": "sub_queries",
+                            "content": chunk.get("data", {}),
+                        }
+                    ).execute()
+
+                elif chunk_type == "draft":
+                    supabase.table("messages").insert(
+                        {
+                            "query_id": str(query_id),
+                            "role": "draft",
+                            "content": chunk.get("data", {}),
+                        }
+                    ).execute()
+
+                elif chunk_type == "supervisor_decision":
+                    supabase.table("messages").insert(
+                        {
+                            "query_id": str(query_id),
+                            "role": "supervisor_decision",
+                            "content": chunk.get("data", {}),
                         }
                     ).execute()
 

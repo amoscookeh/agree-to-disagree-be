@@ -4,8 +4,7 @@ from langgraph.config import get_stream_writer
 from pydantic import BaseModel, Field
 
 from src.agents.llm import llm
-from src.agents.prompts import SYNTHESIS_PROMPT
-from src.agents.state import AgentState
+from src.agents.state import AgentState, Draft
 from src.utils.logger import logger
 
 
@@ -36,6 +35,40 @@ class SynthesisReport(BaseModel):
     agreements: list[str]
     disagreements: list[Disagreement]
     uncertainties: list[str]
+
+
+SYNTHESIS_FROM_DRAFTS_PROMPT = """you are a balanced political analyst synthesizing research from multiple drafts.
+
+original query: {query}
+
+you have collected {draft_count} research drafts covering different angles of this topic.
+each draft explored a specific sub-question and gathered evidence from relevant sources.
+
+RESEARCH DRAFTS:
+{drafts_summary}
+
+ALL SOURCES FOUND:
+LEFT-LEANING SOURCES:
+{left_results}
+
+RIGHT-LEANING SOURCES:
+{right_results}
+
+your task is to create a comprehensive, balanced report that:
+1. synthesizes findings from all drafts into a coherent narrative
+2. presents the strongest evidence for each perspective
+3. identifies where perspectives agree and disagree
+4. acknowledges uncertainties and data limitations
+5. cites all sources used
+
+respond with:
+- summary: comprehensive overview of the debate (3-5 sentences)
+- claim_a: the progressive/liberal perspective with evidence
+- claim_b: the conservative perspective with evidence
+- agreements: points where both sides agree
+- disagreements: specific points of contention with positions and reasons
+- uncertainties: areas where data is weak or conflicting
+"""
 
 
 def _emit_progress(
@@ -73,9 +106,46 @@ def _format_results(results: list[dict]) -> str:
     return "\n".join(formatted)
 
 
+def _format_drafts_summary(drafts: list[Draft]) -> str:
+    if not drafts:
+        return "No drafts available"
+
+    summaries = []
+    for d in drafts:
+        summaries.append(
+            f"### Draft: {d.get('sub_query', 'Unknown')}\n"
+            f"Angle: {d.get('angle', 'unknown')}\n"
+            f"Summary: {d.get('summary', 'N/A')}\n"
+            f"Key Findings:\n"
+            + "\n".join(f"  - {f}" for f in d.get("key_findings", []))
+        )
+    return "\n\n".join(summaries)
+
+
+def _collect_all_results(drafts: list[Draft]) -> tuple[list[dict], list[dict]]:
+    left_results = []
+    right_results = []
+    seen_urls: set[str] = set()
+
+    for draft in drafts:
+        for r in draft.get("left_results", []):
+            url = r.get("url", "")
+            if url and url not in seen_urls:
+                left_results.append(r)
+                seen_urls.add(url)
+
+        for r in draft.get("right_results", []):
+            url = r.get("url", "")
+            if url and url not in seen_urls:
+                right_results.append(r)
+                seen_urls.add(url)
+
+    return left_results, right_results
+
+
 def _extract_citations(report: SynthesisReport) -> list[dict]:
     citations = []
-    seen_urls = set()
+    seen_urls: set[str] = set()
 
     for evidence in report.claim_a.evidence:
         if evidence.url not in seen_urls:
@@ -109,28 +179,28 @@ def _extract_citations(report: SynthesisReport) -> list[dict]:
 async def synthesis_node(state: AgentState) -> dict:
     writer = get_stream_writer()
     query = state.get("refined_query") or state.get("query", "")
+    drafts = state.get("drafts", [])
+    cycles_used = state.get("supervisor_cycle", 1)
 
-    left_results = state.get("left_results", [])
-    right_results = state.get("right_results", [])
-    academic_results = state.get("academic_results", [])
-
-    total_results = len(left_results) + len(right_results) + len(academic_results)
+    left_results, right_results = _collect_all_results(drafts)
+    total_results = len(left_results) + len(right_results)
 
     _emit_progress(
         writer,
         "synthesis",
         "starting",
-        "Analyzing sources for balanced perspectives",
+        f"synthesizing final report from {len(drafts)} drafts...",
         details={
+            "drafts_count": len(drafts),
             "left_sources": len(left_results),
             "right_sources": len(right_results),
-            "academic_sources": len(academic_results),
             "total_sources": total_results,
+            "cycles_used": cycles_used,
         },
     )
 
-    if total_results == 0:
-        logger.warning("synthesis called with no research results")
+    if not drafts and total_results == 0:
+        logger.warning("synthesis called with no drafts or results")
         _emit_progress(
             writer,
             "synthesis",
@@ -148,11 +218,10 @@ async def synthesis_node(state: AgentState) -> dict:
         writer,
         "synthesis",
         "processing",
-        "Extracting claims and evidence from sources",
+        "combining perspectives from research drafts",
         details={
-            "left_sources": len(left_results),
-            "right_sources": len(right_results),
-            "stage": "claim_extraction",
+            "drafts_count": len(drafts),
+            "stage": "draft_combination",
         },
     )
 
@@ -160,18 +229,19 @@ async def synthesis_node(state: AgentState) -> dict:
         writer,
         "synthesis",
         "analyzing",
-        "Generating balanced analysis with LLM",
+        "generating balanced analysis with LLM",
         details={
             "model": "structured output",
-            "task": "synthesize opposing perspectives",
+            "task": "synthesize from drafts",
         },
     )
 
-    prompt = SYNTHESIS_PROMPT.format(
+    prompt = SYNTHESIS_FROM_DRAFTS_PROMPT.format(
         query=query,
+        draft_count=len(drafts),
+        drafts_summary=_format_drafts_summary(drafts),
         left_results=_format_results(left_results),
         right_results=_format_results(right_results),
-        academic_results=_format_results(academic_results),
     )
 
     try:
@@ -182,19 +252,22 @@ async def synthesis_node(state: AgentState) -> dict:
 
         logger.info(
             f"synthesis complete: {len(report.agreements)} agreements, "
-            f"{len(report.disagreements)} disagreements, {len(citations)} citations"
+            f"{len(report.disagreements)} disagreements, {len(citations)} citations, "
+            f"{len(drafts)} drafts, {cycles_used} cycles"
         )
 
         _emit_progress(
             writer,
             "synthesis",
             "complete",
-            f"Report generated with {len(citations)} citations",
+            f"report generated with {len(citations)} citations",
             details={
                 "citation_count": len(citations),
                 "agreements_found": len(report.agreements),
                 "disagreements_found": len(report.disagreements),
                 "uncertainties_noted": len(report.uncertainties),
+                "cycles_used": cycles_used,
+                "drafts_synthesized": len(drafts),
             },
             citation_count=len(citations),
         )
@@ -214,6 +287,10 @@ async def synthesis_node(state: AgentState) -> dict:
             "agreements": report.agreements,
             "disagreements": [d.model_dump() for d in report.disagreements],
             "uncertainties": report.uncertainties,
+            "metadata": {
+                "cycles_used": cycles_used,
+                "drafts_synthesized": len(drafts),
+            },
         }
 
         return {
