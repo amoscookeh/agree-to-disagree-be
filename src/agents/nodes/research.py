@@ -3,33 +3,8 @@ from datetime import UTC, datetime
 from langgraph.config import get_stream_writer
 
 from src.agents.state import AgentState
-from src.data_sources import DataSourceRegistry
-from src.data_sources.left_leaning import GuardianSource, NYTSource
-from src.data_sources.right_leaning import NewsAPISource, NYPostRSSSource
+from src.data_sources import get_default_registry, search_result_to_dict
 from src.utils.logger import logger
-
-
-def _create_registry() -> DataSourceRegistry:
-    registry = DataSourceRegistry()
-
-    registry.register_left(GuardianSource())
-    registry.register_left(NYTSource())
-
-    registry.register_right(NYPostRSSSource())
-    registry.register_right(NewsAPISource())
-
-    return registry
-
-
-def _search_result_to_dict(result) -> dict:
-    return {
-        "title": result.title,
-        "url": result.url,
-        "snippet": result.snippet,
-        "published_date": result.published_date,
-        "source_name": result.source_name,
-        "ideological_lean": result.ideological_lean.value,
-    }
 
 
 def _emit_progress(
@@ -73,7 +48,7 @@ async def research_node(state: AgentState) -> dict:
         details={"query": query, "stage": "initialization"},
     )
 
-    registry = _create_registry()
+    registry = get_default_registry()
     sources = registry.list_sources()
     left_sources = [s for s in sources if s["lean"] == "left"]
     right_sources = [s for s in sources if s["lean"] == "right"]
@@ -120,12 +95,10 @@ async def research_node(state: AgentState) -> dict:
 
         all_results = await registry.search_all(query, max_results=5)
 
-        left_results = [_search_result_to_dict(r) for r in all_results.get("left", [])]
-        right_results = [
-            _search_result_to_dict(r) for r in all_results.get("right", [])
-        ]
+        left_results = [search_result_to_dict(r) for r in all_results.get("left", [])]
+        right_results = [search_result_to_dict(r) for r in all_results.get("right", [])]
         academic_results = [
-            _search_result_to_dict(r) for r in all_results.get("academic", [])
+            search_result_to_dict(r) for r in all_results.get("academic", [])
         ]
 
         _emit_progress(

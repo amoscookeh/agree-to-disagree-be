@@ -48,7 +48,9 @@ class TestResearchNode:
         self, mock_search_results, mock_stream_writer
     ):
         with (
-            patch("src.agents.nodes.research._create_registry") as mock_create_registry,
+            patch(
+                "src.agents.nodes.research.get_default_registry"
+            ) as mock_create_registry,
             patch(
                 "src.agents.nodes.research.get_stream_writer",
                 return_value=mock_stream_writer,
@@ -79,7 +81,9 @@ class TestResearchNode:
         self, mock_search_results, mock_stream_writer
     ):
         with (
-            patch("src.agents.nodes.research._create_registry") as mock_create_registry,
+            patch(
+                "src.agents.nodes.research.get_default_registry"
+            ) as mock_create_registry,
             patch(
                 "src.agents.nodes.research.get_stream_writer",
                 return_value=mock_stream_writer,
@@ -117,7 +121,9 @@ class TestResearchNode:
         self, mock_search_results, mock_stream_writer
     ):
         with (
-            patch("src.agents.nodes.research._create_registry") as mock_create_registry,
+            patch(
+                "src.agents.nodes.research.get_default_registry"
+            ) as mock_create_registry,
             patch(
                 "src.agents.nodes.research.get_stream_writer",
                 return_value=mock_stream_writer,
@@ -143,7 +149,9 @@ class TestResearchNode:
         self, mock_search_results, mock_stream_writer
     ):
         with (
-            patch("src.agents.nodes.research._create_registry") as mock_create_registry,
+            patch(
+                "src.agents.nodes.research.get_default_registry"
+            ) as mock_create_registry,
             patch(
                 "src.agents.nodes.research.get_stream_writer",
                 return_value=mock_stream_writer,

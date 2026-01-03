@@ -7,9 +7,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.agents.graph import build_research_graph
-from src.agents.nodes.research import _create_registry
 from src.agents.state import AgentState
 from src.api.deps import check_quota
+from src.data_sources import get_default_registry
 from src.db.checkpointer import get_checkpointer
 from src.db.client import get_supabase
 from src.utils.logger import logger
@@ -29,6 +29,25 @@ class SourceInfo(BaseModel):
     enabled: bool
 
 
+def _load_messages_for_state(messages: list[dict]) -> list[dict]:
+    """convert db messages to state messages format for classification"""
+    state_messages = []
+    for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", {})
+
+        if role == "user":
+            state_messages.append({"role": "user", "content": content})
+        elif role == "followup":
+            state_messages.append({"role": "assistant", "content": content})
+        elif role == "report":
+            state_messages.append({"role": "assistant", "content": content})
+        elif role == "clarification":
+            state_messages.append({"role": "system", "content": content})
+
+    return state_messages
+
+
 @router.post("/research")
 async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
     query = request.query.strip()
@@ -37,13 +56,16 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
 
     supabase = get_supabase()
 
+    is_new_thread = request.thread_id is None
     thread_id = request.thread_id or str(uuid4())
     query_id: str | None = None
+    existing_messages: list[dict] = []
+    existing_report: dict | None = None
 
-    if request.thread_id:
+    if not is_new_thread:
         existing = (
             supabase.table("queries")
-            .select("id")
+            .select("id, is_completed")
             .eq("thread_id", thread_id)
             .eq("user_id", user["id"])
             .maybe_single()
@@ -52,9 +74,31 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
         if existing and existing.data:
             existing_data = cast(dict[str, Any], existing.data)
             query_id = str(existing_data["id"])
-            supabase.table("queries").update({"query_text": query}).eq(
-                "id", query_id
-            ).execute()
+
+            msg_response = (
+                supabase.table("messages")
+                .select("*")
+                .eq("query_id", query_id)
+                .order("created_at")
+                .execute()
+            )
+            existing_messages = (
+                cast(list[dict[str, Any]], msg_response.data)
+                if msg_response.data
+                else []
+            )
+
+            if existing_data.get("is_completed"):
+                report_response = (
+                    supabase.table("reports")
+                    .select("*")
+                    .eq("query_id", query_id)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if report_response.data:
+                    existing_report = cast(dict[str, Any], report_response.data[0])
 
     if not query_id:
         query_result = (
@@ -73,9 +117,11 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
         query_result_data = cast(list[dict[str, Any]], query_result.data)
         query_id = str(query_result_data[0]["id"])
 
-    logger.info(f"research request: {query[:50]}... (thread={thread_id})")
+    logger.info(
+        f"research request: {query[:50]}... (thread={thread_id}, "
+        f"new_thread={is_new_thread}, existing_msgs={len(existing_messages)})"
+    )
 
-    # save initial user query message
     supabase.table("messages").insert(
         {
             "query_id": str(query_id),
@@ -89,9 +135,22 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
         "thread_id": thread_id,
     }
 
+    if existing_messages:
+        initial_state["messages"] = _load_messages_for_state(existing_messages)
+
+    if existing_report:
+        initial_state["report"] = {
+            "summary": existing_report.get("summary", ""),
+            "claim_a": existing_report.get("claim_a", {}),
+            "claim_b": existing_report.get("claim_b", {}),
+            "agreements": existing_report.get("agreements", []),
+            "disagreements": existing_report.get("disagreements", []),
+            "uncertainties": existing_report.get("uncertainties", []),
+        }
+        initial_state["citations"] = existing_report.get("citations", [])
+
     if request.clarification_response:
         initial_state["clarification_response"] = request.clarification_response
-        # save user's clarification response
         supabase.table("messages").insert(
             {
                 "query_id": str(query_id),
@@ -119,13 +178,12 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             async for chunk in graph.astream(
                 initial_state, config, stream_mode="custom"
             ):
-                # save progress events to database
                 if chunk.get("type") == "progress":
                     supabase.table("messages").insert(
                         {
                             "query_id": str(query_id),
                             "role": "agent",
-                            "content": chunk.get("data", {}),
+                            "content": chunk,
                         }
                     ).execute()
 
@@ -134,7 +192,32 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             state_snapshot = await graph.aget_state(config)
             final_state = state_snapshot.values if state_snapshot else {}
 
-            if (
+            if final_state.get("followup_answer"):
+                answer = final_state["followup_answer"]
+                citations = final_state.get("followup_citations", [])
+
+                followup_data = {
+                    "answer": answer,
+                    "citations": citations,
+                    "thread_id": thread_id,
+                }
+                followup_event = {
+                    "type": "followup_answer",
+                    "data": followup_data,
+                }
+
+                supabase.table("messages").insert(
+                    {
+                        "query_id": str(query_id),
+                        "role": "followup",
+                        "content": followup_data,
+                    }
+                ).execute()
+
+                yield f"data: {json.dumps(followup_event)}\n\n"
+                research_completed = True
+
+            elif (
                 final_state.get("needs_clarification")
                 and not request.clarification_response
             ):
@@ -149,7 +232,6 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
                     "data": clarification_data,
                 }
 
-                # save clarification request
                 supabase.table("messages").insert(
                     {
                         "query_id": str(query_id),
@@ -169,7 +251,6 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
                     "citations": final_state.get("citations", []),
                 }
 
-                # save report message
                 supabase.table("messages").insert(
                     {
                         "query_id": str(query_id),
@@ -214,7 +295,6 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
                     "data": error_data,
                 }
 
-                # save error message
                 supabase.table("messages").insert(
                     {
                         "query_id": str(query_id),
@@ -261,6 +341,6 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
 
 @router.get("/sources")
 async def list_sources() -> list[SourceInfo]:
-    registry = _create_registry()
+    registry = get_default_registry()
     sources = registry.list_sources()
     return [SourceInfo(**s) for s in sources]

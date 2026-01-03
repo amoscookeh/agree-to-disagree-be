@@ -93,7 +93,7 @@ NEWSAPI_KEY=xxx                      # optional
 **Data Sources:**
 
 - Left: Guardian, NYT
-- Right: NY Post, Fox News
+- Right: NY Post, NewsAPI
 - Academic: Semantic Scholar, Census (planned)
 
 **Tech Stack:**
@@ -124,5 +124,3 @@ uv run pytest
 uv run ruff check .
 uv run mypy src
 ```
-
-See `.cursor/docs/tdd.md` for details.
