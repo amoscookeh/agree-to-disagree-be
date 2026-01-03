@@ -56,11 +56,11 @@ def _format_report(state: AgentState) -> str:
 Previous Report Summary:
 {summary}
 
-Left Perspective: {claim_a.get('title', 'N/A')}
-Right Perspective: {claim_b.get('title', 'N/A')}
+Left Perspective: {claim_a.get("title", "N/A")}
+Right Perspective: {claim_b.get("title", "N/A")}
 
-Agreements: {len(report.get('agreements', []))} points
-Disagreements: {len(report.get('disagreements', []))} points
+Agreements: {len(report.get("agreements", []))} points
+Disagreements: {len(report.get("disagreements", []))} points
 """
     return formatted.strip()
 
@@ -85,7 +85,8 @@ async def classification_node(state: AgentState) -> dict:
     )
 
     # if first message in conversation, always treat as research prompt
-    if not messages or len(messages) == 0:
+    messages_list = messages if isinstance(messages, list) else []
+    if not messages_list or len(messages_list) == 0:
         logger.info("first message in conversation, classifying as research_prompt")
 
         _emit_progress(
@@ -113,12 +114,12 @@ async def classification_node(state: AgentState) -> dict:
             "tool": "llm_classify_message",
             "model": "openai/gpt-4o",
             "query": query,
-            "context_messages": len(messages),
+            "context_messages": len(messages_list),
             "output_schema": "MessageClassification",
         },
     )
 
-    conversation_history = _format_conversation_history(messages)
+    conversation_history = _format_conversation_history(messages_list)
     report_context = _format_report(state)
 
     prompt = f"""you are a message classifier for a political research assistant.
@@ -190,4 +191,3 @@ respond in json format with:
             "message_type": "research_prompt",
             "current_agent": "classification",
         }
-

@@ -1,4 +1,5 @@
 import json
+from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -48,8 +49,9 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             .maybe_single()
             .execute()
         )
-        if existing.data:
-            query_id = existing.data["id"]
+        if existing and existing.data:
+            existing_data = cast(dict[str, Any], existing.data)
+            query_id = str(existing_data["id"])
             supabase.table("queries").update({"query_text": query}).eq(
                 "id", query_id
             ).execute()
@@ -68,7 +70,8 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             )
             .execute()
         )
-        query_id = query_result.data[0]["id"]
+        query_result_data = cast(list[dict[str, Any]], query_result.data)
+        query_id = str(query_result_data[0]["id"])
 
     logger.info(f"research request: {query[:50]}... (thread={thread_id})")
 
@@ -100,11 +103,11 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
             }
         ).execute()
 
-    async def event_generator():
+    async def event_generator() -> Any:
         research_completed = False
         checkpointer = get_checkpointer()
         graph = build_research_graph(checkpointer)
-        config = {"configurable": {"thread_id": thread_id}}
+        config: Any = {"configurable": {"thread_id": thread_id}}
 
         thread_event = {
             "type": "thread",
@@ -113,7 +116,9 @@ async def research(request: ResearchRequest, user: dict = Depends(check_quota)):
         yield f"data: {json.dumps(thread_event)}\n\n"
 
         try:
-            async for chunk in graph.astream(initial_state, config, stream_mode="custom"):
+            async for chunk in graph.astream(
+                initial_state, config, stream_mode="custom"
+            ):
                 # save progress events to database
                 if chunk.get("type") == "progress":
                     supabase.table("messages").insert(

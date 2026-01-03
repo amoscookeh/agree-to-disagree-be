@@ -1,6 +1,8 @@
+from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from langgraph.types import StateSnapshot
 
 from src.api.deps import get_current_user
 from src.db.checkpointer import get_checkpointer
@@ -30,10 +32,11 @@ async def create_thread(user: dict = Depends(get_current_user)):
         .execute()
     )
 
+    data = cast(list[dict[str, Any]], result.data)
     return {
         "thread_id": thread_id,
-        "query_id": result.data[0]["id"],
-        "created_at": result.data[0]["created_at"],
+        "query_id": data[0]["id"],
+        "created_at": data[0]["created_at"],
     }
 
 
@@ -76,10 +79,11 @@ async def get_thread(
             .execute()
         )
 
-        if not query_response.data or len(query_response.data) == 0:
+        query_data = cast(list[dict[str, Any]], query_response.data)
+        if not query_data or len(query_data) == 0:
             raise HTTPException(status_code=404, detail="Thread not found")
 
-        query = query_response.data[0]
+        query = query_data[0]
 
     except HTTPException:
         raise
@@ -96,8 +100,9 @@ async def get_thread(
                 .eq("query_id", query["id"])
                 .execute()
             )
-            if report_response.data and len(report_response.data) > 0:
-                report = report_response.data[0]
+            report_data = cast(list[dict[str, Any]], report_response.data)
+            if report_data and len(report_data) > 0:
+                report = report_data[0]
         except Exception as e:
             logger.warning(f"failed to fetch report for query {query['id']}: {e}")
 
@@ -109,7 +114,7 @@ async def get_thread(
         .order("created_at")
         .execute()
     )
-    messages = messages_response.data if messages_response.data else []
+    messages = cast(list[dict[str, Any]], messages_response.data) if messages_response.data else []
 
     state = None
     history = []
@@ -117,22 +122,28 @@ async def get_thread(
         checkpointer = get_checkpointer()
         if checkpointer:
             from src.agents.graph import build_research_graph
+
             graph = build_research_graph(checkpointer)
-            config = {"configurable": {"thread_id": thread_id}}
+            config: Any = {"configurable": {"thread_id": thread_id}}
 
             # get current state
-            state_snapshot = await graph.aget_state(config)
+            state_snapshot: StateSnapshot = await graph.aget_state(config)
             if state_snapshot and state_snapshot.values:
                 state = state_snapshot.values
 
             # get full history of checkpoints (includes all progress updates, tool calls, etc)
-            async for checkpoint in graph.aget_state_history(config):
-                history.append({
-                    "values": checkpoint.values,
-                    "next": checkpoint.next,
-                    "metadata": checkpoint.metadata,
-                    "created_at": checkpoint.created_at if hasattr(checkpoint, 'created_at') else None,
-                })
+            snapshot: StateSnapshot
+            async for snapshot in graph.aget_state_history(config):
+                history.append(
+                    {
+                        "values": snapshot.values,
+                        "next": snapshot.next,
+                        "metadata": snapshot.metadata,
+                        "created_at": snapshot.created_at
+                        if hasattr(snapshot, "created_at")
+                        else None,
+                    }
+                )
     except Exception as e:
         logger.warning(f"failed to get checkpointer state for thread {thread_id}: {e}")
 
@@ -169,4 +180,3 @@ async def delete_thread(
     supabase.table("queries").delete().eq("thread_id", thread_id).execute()
 
     return {"deleted": True}
-

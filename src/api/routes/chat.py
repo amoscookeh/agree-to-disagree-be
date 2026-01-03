@@ -1,4 +1,7 @@
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException
+from langgraph.types import StateSnapshot
 
 from src.api.deps import require_auth
 from src.db.checkpointer import get_checkpointer
@@ -22,10 +25,10 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
         .execute()
     )
 
-    if not query_result.data:
+    if not query_result or not query_result.data:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    query = query_result.data
+    query = cast(dict[str, Any], query_result.data)
     thread_id = query.get("thread_id")
 
     report = None
@@ -37,8 +40,8 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
             .maybe_single()
             .execute()
         )
-        if report_result.data:
-            report = report_result.data
+        if report_result and report_result.data:
+            report = cast(dict[str, Any], report_result.data)
 
     # get all messages for this conversation
     messages_result = (
@@ -48,7 +51,7 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
         .order("created_at")
         .execute()
     )
-    messages = messages_result.data if messages_result.data else []
+    messages = cast(list[dict[str, Any]], messages_result.data) if messages_result.data else []
 
     state = None
     history = []
@@ -60,23 +63,26 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
                 from src.agents.graph import build_research_graph
 
                 graph = build_research_graph(checkpointer)
-                config = {"configurable": {"thread_id": thread_id}}
+                config: Any = {"configurable": {"thread_id": thread_id}}
 
-                state_snapshot = await graph.aget_state(config)
+                state_snapshot: StateSnapshot = await graph.aget_state(config)
                 if state_snapshot and state_snapshot.values:
                     state = state_snapshot.values
 
-                async for checkpoint in graph.aget_state_history(config):
+                snapshot: StateSnapshot
+                async for snapshot in graph.aget_state_history(config):
                     history.append(
                         {
-                            "values": checkpoint.values,
-                            "next": checkpoint.next,
-                            "metadata": checkpoint.metadata,
-                            "created_at": getattr(checkpoint, "created_at", None),
+                            "values": snapshot.values,
+                            "next": snapshot.next,
+                            "metadata": snapshot.metadata,
+                            "created_at": getattr(snapshot, "created_at", None),
                         }
                     )
         except Exception as e:
-            logger.warning(f"failed to get checkpointer state for query {query_id}: {e}")
+            logger.warning(
+                f"failed to get checkpointer state for query {query_id}: {e}"
+            )
 
     return {
         "query_id": query_id,
@@ -87,4 +93,3 @@ async def get_chat(query_id: str, user: dict = Depends(require_auth)):
         "state": state,
         "history": history,
     }
-

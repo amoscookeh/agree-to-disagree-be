@@ -37,4 +37,3 @@ async def close_checkpointer():
 def get_checkpointer() -> AsyncPostgresSaver | None:
     """get the checkpointer instance (must call init_checkpointer first)"""
     return _checkpointer
-

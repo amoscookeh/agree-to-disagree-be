@@ -32,7 +32,9 @@ def _search_result_to_dict(result) -> dict:
     }
 
 
-def _emit_progress(writer, agent: str, status: str, message: str, details: dict | None = None, **extra):
+def _emit_progress(
+    writer, agent: str, status: str, message: str, details: dict | None = None, **extra
+):
     event = {
         "type": "progress",
         "data": {

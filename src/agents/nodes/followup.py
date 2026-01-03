@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from langchain.tools import ToolRuntime, tool
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.config import get_stream_writer
 
 from src.agents.llm import llm
@@ -41,20 +42,20 @@ def _emit_progress(writer, agent: str, status: str, message: str, **extra):
 def _format_report(state: AgentState) -> str:
     """format the report for context"""
     report = state.get("report")
-    if not report:
+    if not report or not isinstance(report, dict):
         return "No report available."
 
     summary = report.get("summary", "")
-    claim_a = report.get("claim_a", {})
-    claim_b = report.get("claim_b", {})
-    agreements = report.get("agreements", [])
-    disagreements = report.get("disagreements", [])
+    claim_a = report.get("claim_a", {}) if isinstance(report.get("claim_a"), dict) else {}
+    claim_b = report.get("claim_b", {}) if isinstance(report.get("claim_b"), dict) else {}
+    agreements = report.get("agreements", []) if isinstance(report.get("agreements"), list) else []
+    disagreements = report.get("disagreements", []) if isinstance(report.get("disagreements"), list) else []
 
     formatted = f"""
 Report Summary:
 {summary}
 
-Left Perspective ({claim_a.get('stance', 'N/A')}): {claim_a.get('title', 'N/A')}
+Left Perspective ({claim_a.get("stance", "N/A")}): {claim_a.get("title", "N/A")}
 Evidence:
 """
     for i, evidence in enumerate(claim_a.get("evidence", [])[:3], 1):
@@ -76,18 +77,20 @@ async def search_left_sources(query: str, runtime: ToolRuntime) -> str:
     """search left-leaning news sources for information"""
     writer = runtime.stream_writer
 
-    writer({
-        "type": "progress",
-        "agent": "followup_tool",
-        "status": "searching",
-        "message": f"searching left-leaning sources for: {query}",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "tool_call": {
-            "tool": "search_left_sources",
-            "query": query,
-            "sources": ["The Guardian", "New York Times"],
-        },
-    })
+    writer(
+        {
+            "type": "progress",
+            "agent": "followup_tool",
+            "status": "searching",
+            "message": f"searching left-leaning sources for: {query}",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "tool_call": {
+                "tool": "search_left_sources",
+                "query": query,
+                "sources": ["The Guardian", "New York Times"],
+            },
+        }
+    )
 
     registry = _create_registry()
     results = await registry.search_left(query, max_results=5)
@@ -104,14 +107,16 @@ async def search_left_sources(query: str, runtime: ToolRuntime) -> str:
             f"  URL: {r.url}"
         )
 
-    writer({
-        "type": "progress",
-        "agent": "followup_tool",
-        "status": "complete",
-        "message": f"found {len(results)} results from left-leaning sources",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "results_count": len(results),
-    })
+    writer(
+        {
+            "type": "progress",
+            "agent": "followup_tool",
+            "status": "complete",
+            "message": f"found {len(results)} results from left-leaning sources",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "results_count": len(results),
+        }
+    )
 
     return "\n\n".join(formatted)
 
@@ -121,18 +126,20 @@ async def search_right_sources(query: str, runtime: ToolRuntime) -> str:
     """search right-leaning news sources for information"""
     writer = runtime.stream_writer
 
-    writer({
-        "type": "progress",
-        "agent": "followup_tool",
-        "status": "searching",
-        "message": f"searching right-leaning sources for: {query}",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "tool_call": {
-            "tool": "search_right_sources",
-            "query": query,
-            "sources": ["NY Post", "NewsAPI"],
-        },
-    })
+    writer(
+        {
+            "type": "progress",
+            "agent": "followup_tool",
+            "status": "searching",
+            "message": f"searching right-leaning sources for: {query}",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "tool_call": {
+                "tool": "search_right_sources",
+                "query": query,
+                "sources": ["NY Post", "NewsAPI"],
+            },
+        }
+    )
 
     registry = _create_registry()
     results = await registry.search_right(query, max_results=5)
@@ -149,14 +156,16 @@ async def search_right_sources(query: str, runtime: ToolRuntime) -> str:
             f"  URL: {r.url}"
         )
 
-    writer({
-        "type": "progress",
-        "agent": "followup_tool",
-        "status": "complete",
-        "message": f"found {len(results)} results from right-leaning sources",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "results_count": len(results),
-    })
+    writer(
+        {
+            "type": "progress",
+            "agent": "followup_tool",
+            "status": "complete",
+            "message": f"found {len(results)} results from right-leaning sources",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "results_count": len(results),
+        }
+    )
 
     return "\n\n".join(formatted)
 
@@ -164,8 +173,8 @@ async def search_right_sources(query: str, runtime: ToolRuntime) -> str:
 @tool
 def get_report_context(runtime: ToolRuntime) -> str:
     """get the full context of the previously generated research report"""
-    state = runtime.state
-    return _format_report(state)
+    state_dict = runtime.state if hasattr(runtime, "state") else {}
+    return _format_report(state_dict)  # type: ignore[arg-type]
 
 
 async def followup_node(state: AgentState) -> dict:
@@ -188,14 +197,43 @@ async def followup_node(state: AgentState) -> dict:
         query=query,
     )
 
-    # create agent with tools
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-    from langchain.prompts import ChatPromptTemplate
+    # simplified implementation without langchain agents (not available in current version)
+    # tools = [search_left_sources, search_right_sources, get_report_context]
 
-    tools = [search_left_sources, search_right_sources, get_report_context]
+    # get report context
+    report_context = _format_report(state)
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """you are a helpful political research assistant answering follow-up questions.
+    # format conversation history
+    messages_obj = state.get("messages", [])
+    messages_list = messages_obj if isinstance(messages_obj, list) else []
+    chat_history_lines = []
+    for msg in messages_list[-5:]:  # last 5 messages
+        if isinstance(msg, dict):
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "user":
+                chat_history_lines.append(f"User: {content}")
+            elif role == "assistant":
+                chat_history_lines.append(f"Assistant: {content}")
+
+    prompt_text = f"""you are a helpful political research assistant answering follow-up questions.
+
+previous report context:
+{report_context}
+
+conversation history:
+{chr(10).join(chat_history_lines) if chat_history_lines else "No previous conversation."}
+
+user question: {query}
+
+provide a concise, balanced answer based on the report context. if the question requires information not in the report, acknowledge that and suggest what additional research would be needed."""
+
+    # placeholder for proper prompt template
+    _unused_prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """you are a helpful political research assistant answering follow-up questions.
 
 you have access to:
 1. the previous research report (use get_report_context)
@@ -209,50 +247,29 @@ guidelines:
 - be concise but thorough
 - cite sources when providing new information
 
-previous report is available in the conversation context."""),
-        ("placeholder", "{chat_history}"),
-        ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
-    ])
+previous report is available in the conversation context.""",
+            ),
+            ("placeholder", "{chat_history}"),
+            ("human", "{input}"),
+            ("placeholder", "{agent_scratchpad}"),
+        ]
+    )
 
     _emit_progress(
         writer,
         "followup",
         "analyzing",
-        "using agent with tools to answer question...",
+        "generating answer based on report context...",
         query=query,
-        available_tools=["search_left_sources", "search_right_sources", "get_report_context"],
     )
 
     try:
-        agent = create_tool_calling_agent(llm, tools, prompt)
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=tools,
-            verbose=True,
-            max_iterations=5,
-            handle_parsing_errors=True,
-        )
+        # use llm directly for now (agent executor not available in current langchain version)
+        from langchain_core.messages import HumanMessage
 
-        # format conversation history
-        messages = state.get("messages", [])
-        chat_history = []
-        for msg in messages[-5:]:  # last 5 messages
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "user":
-                chat_history.append(("human", content))
-            elif role == "assistant":
-                chat_history.append(("ai", content))
+        response = await llm.ainvoke([HumanMessage(content=prompt_text)])
 
-        # add report context
-        report_context = _format_report(state)
-        input_text = f"Report Context:\n{report_context}\n\nQuestion: {query}"
-
-        result = await agent_executor.ainvoke({
-            "input": input_text,
-            "chat_history": chat_history,
-        })
+        result = {"output": response.content}
 
         answer = result.get("output", "I couldn't find an answer to your question.")
 
@@ -287,4 +304,3 @@ previous report is available in the conversation context."""),
             "error": str(e),
             "current_agent": "followup",
         }
-
