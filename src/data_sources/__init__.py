@@ -4,8 +4,14 @@ from src.data_sources.registry import DataSourceRegistry
 
 def get_default_registry() -> DataSourceRegistry:
     """create registry with all configured data sources"""
+    from src.config import settings
     from src.data_sources.left_leaning import GuardianSource, NYTSource
-    from src.data_sources.right_leaning import NewsAPISource, NYPostRSSSource
+    from src.data_sources.right_leaning import (
+        BreitbartRSSSource,
+        DailyWireRSSSource,
+        NewsAPISource,
+        NYPostRSSSource,
+    )
 
     registry = DataSourceRegistry()
 
@@ -13,7 +19,11 @@ def get_default_registry() -> DataSourceRegistry:
     registry.register_left(NYTSource())
 
     registry.register_right(NYPostRSSSource())
-    registry.register_right(NewsAPISource())
+    registry.register_right(BreitbartRSSSource())
+    registry.register_right(DailyWireRSSSource())
+    
+    if settings.newsapi_key:
+        registry.register_right(NewsAPISource())
 
     return registry
 

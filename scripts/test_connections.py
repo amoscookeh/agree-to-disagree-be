@@ -23,11 +23,11 @@ def test_supabase_connection():
 
         # test connection by checking health endpoint
         # supabase client is initialized successfully if we get here
-        logger.info(f"✓ supabase client initialized for {settings.supabase_url}")
+        logger.info(f"supabase client initialized for {settings.supabase_url}")
         logger.info("  note: create tables to test full functionality")
         return True
     except Exception as e:
-        logger.error(f"✗ supabase connection failed: {e}")
+        logger.error(f"supabase connection failed: {e}")
         return False
 
 
@@ -41,11 +41,11 @@ async def test_openrouter_connection():
         )
 
         content = response.content
-        logger.info("✓ openrouter connected successfully")
+        logger.info("openrouter connected successfully")
         logger.info(f"  response: {content}")
         return True
     except Exception as e:
-        logger.error(f"✗ openrouter connection failed: {e}")
+        logger.error(f"openrouter connection failed: {e}")
         return False
 
 
@@ -59,11 +59,11 @@ async def test_openrouter_streaming():
             chunks.append(chunk.content)
 
         full_response = "".join(chunks)
-        logger.info("✓ openrouter streaming works")
+        logger.info("openrouter streaming works")
         logger.info(f"  streamed response: {full_response}")
         return True
     except Exception as e:
-        logger.error(f"✗ openrouter streaming failed: {e}")
+        logger.error(f"openrouter streaming failed: {e}")
         return False
 
 
@@ -86,19 +86,19 @@ async def test_data_sources():
 
     for name, source, api_key in sources:
         if api_key is not None and not api_key:
-            logger.info(f"⚠️  {name}: API key not configured, skipping")
+            logger.info(f"{name}: API key not configured, skipping")
             continue
 
         try:
             test_results = await source.search("test", max_results=1)
             if test_results:
-                logger.info(f"✓ {name}: working ({len(test_results)} results)")
+                logger.info(f"{name}: working ({len(test_results)} results)")
                 results.append((name, True))
             else:
-                logger.warning(f"⚠️  {name}: no results (may be rate limited)")
+                logger.warning(f"{name}: no results (may be rate limited)")
                 results.append((name, True))
         except Exception as e:
-            logger.error(f"✗ {name}: {e}")
+            logger.error(f"{name}: {e}")
             results.append((name, False))
 
     return results
@@ -126,16 +126,16 @@ async def main():
     logger.info("\n=== test summary ===")
     all_passed = True
     for name, passed in results:
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "PASS" if passed else "FAIL"
         logger.info(f"{status}: {name}")
         if not passed:
             all_passed = False
 
     if all_passed:
-        logger.info("\n🎉 all connections working!")
+        logger.info("\nall connections working")
         return 0
     else:
-        logger.error("\n❌ some connections failed")
+        logger.error("\nsome connections failed")
         return 1
 
 

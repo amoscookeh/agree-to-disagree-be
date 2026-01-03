@@ -30,18 +30,16 @@ def _relevance_score(query: str, title: str, summary: str) -> float:
     return min(score, 1.0)
 
 
-class NYPostRSSSource(DataSource):
+class BreitbartRSSSource(DataSource):
     def __init__(self):
         super().__init__()
         self._feed_urls = [
-            "https://nypost.com/feed/",
-            "https://nypost.com/us-news/feed/",
-            "https://nypost.com/politics/feed/",
+            "https://feeds.feedburner.com/breitbart",
         ]
 
     @property
     def source_name(self) -> str:
-        return "NY Post"
+        return "Breitbart"
 
     @property
     def ideological_lean(self) -> IdeologicalLean:
@@ -65,7 +63,7 @@ class NYPostRSSSource(DataSource):
                 scored_entries = []
                 for entry in all_entries:
                     title = entry.get("title", "")
-                    summary = entry.get("summary", "")
+                    summary = entry.get("summary", entry.get("description", ""))
                     score = _relevance_score(query, title, summary)
                     
                     if score > 0.2:
@@ -83,7 +81,7 @@ class NYPostRSSSource(DataSource):
                     seen_urls.add(url)
                     
                     title = entry.get("title", "")
-                    summary = entry.get("summary", "")
+                    summary = entry.get("summary", entry.get("description", ""))
                     
                     published_date = None
                     if hasattr(entry, "published_parsed") and entry.published_parsed:
@@ -94,6 +92,7 @@ class NYPostRSSSource(DataSource):
                             pass
                     
                     snippet = summary[:200] if summary else title[:200]
+                    snippet = re.sub(r'<[^>]+>', '', snippet)
                     
                     results.append(
                         SearchResult(
@@ -106,11 +105,11 @@ class NYPostRSSSource(DataSource):
                         )
                     )
                 
-                logger.info(f"ny post rss: found {len(results)} results for '{query}'")
+                logger.info(f"breitbart rss: found {len(results)} results for '{query}'")
                 return results
 
             except Exception as e:
-                logger.error(f"ny post rss error: {e}")
+                logger.error(f"breitbart rss error: {e}")
                 return []
 
     async def health_check(self) -> bool:
@@ -120,3 +119,4 @@ class NYPostRSSSource(DataSource):
                 return response.status_code == 200
         except Exception:
             return False
+
