@@ -8,6 +8,8 @@ AI-powered political research that surfaces progressive and conservative perspec
 
 **My Solution:** Ask a political question and receive a balanced report analyzing competing claims, evidence from both sides, and clear explanations of where perspectives agree and disagree—leaving you informed enough to form your own opinion.
 
+**Live Demo:** https://agree2disagree.vercel.app/ (backend sleeps after inactivity, please give it ~30s to wake up)
+
 ## Example
 
 ```bash

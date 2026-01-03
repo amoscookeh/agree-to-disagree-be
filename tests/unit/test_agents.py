@@ -174,13 +174,15 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_with_llm_clear_query(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
-            mock_llm.structured_output = AsyncMock(
+            mock_llm = MagicMock()
+            mock_structured_llm = AsyncMock()
+            mock_structured_llm.ainvoke = AsyncMock(
                 return_value=ClarificationAnalysis(
                     needs_clarification=False,
                     refined_query="What are the perspectives on immigration policy reform?",
@@ -188,6 +190,8 @@ class TestClarificationNode:
                     suggestions=[],
                 )
             )
+            mock_llm.with_structured_output.return_value = mock_structured_llm
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {
                 "query": "What are the perspectives on immigration policy reform?"
@@ -200,12 +204,13 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_with_llm_vague_query(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
+            mock_llm = MagicMock()
             mock_structured_llm = AsyncMock()
             mock_structured_llm.ainvoke = AsyncMock(
                 return_value=ClarificationAnalysis(
@@ -219,6 +224,7 @@ class TestClarificationNode:
                 )
             )
             mock_llm.with_structured_output.return_value = mock_structured_llm
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "what are perspectives on healthcare policy"}
             result = await clarification_node(state)
@@ -267,15 +273,17 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_llm_failure_falls_back(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
-            mock_llm.structured_output = AsyncMock(
+            mock_llm = MagicMock()
+            mock_llm.with_structured_output.return_value.ainvoke = AsyncMock(
                 side_effect=Exception("LLM API error")
             )
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What about healthcare policy in the US?"}
             result = await clarification_node(state)
@@ -285,13 +293,15 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_streams_progress(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
-            mock_llm.structured_output = AsyncMock(
+            mock_llm = MagicMock()
+            mock_structured_llm = AsyncMock()
+            mock_structured_llm.ainvoke = AsyncMock(
                 return_value=ClarificationAnalysis(
                     needs_clarification=False,
                     refined_query="What about healthcare policy in the US?",
@@ -299,6 +309,8 @@ class TestClarificationNode:
                     suggestions=[],
                 )
             )
+            mock_llm.with_structured_output.return_value = mock_structured_llm
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What about healthcare policy in the US?"}
             await clarification_node(state)
@@ -310,12 +322,13 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_llm_returns_questions(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
+            mock_llm = MagicMock()
             mock_structured_llm = AsyncMock()
             mock_structured_llm.ainvoke = AsyncMock(
                 return_value=ClarificationAnalysis(
@@ -329,6 +342,7 @@ class TestClarificationNode:
                 )
             )
             mock_llm.with_structured_output.return_value = mock_structured_llm
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "what are perspectives on tax policy"}
             result = await clarification_node(state)
@@ -339,12 +353,13 @@ class TestClarificationNode:
     @pytest.mark.asyncio
     async def test_clarification_empty_questions_when_clear(self, mock_stream_writer):
         with (
-            patch("src.agents.nodes.clarification.llm") as mock_llm,
+            patch("src.agents.nodes.clarification.get_llm") as mock_get_llm,
             patch(
                 "src.agents.nodes.clarification.get_stream_writer",
                 return_value=mock_stream_writer,
             ),
         ):
+            mock_llm = MagicMock()
             mock_structured_llm = AsyncMock()
             mock_structured_llm.ainvoke = AsyncMock(
                 return_value=ClarificationAnalysis(
@@ -355,6 +370,7 @@ class TestClarificationNode:
                 )
             )
             mock_llm.with_structured_output.return_value = mock_structured_llm
+            mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What are the perspectives on minimum wage?"}
             result = await clarification_node(state)
