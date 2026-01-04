@@ -4,7 +4,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from src.agents.llm import llm
+from prompts import FOLLOWUP_FINAL_PROMPT, FOLLOWUP_SYSTEM_PROMPT
+from prompts.models import get_model
+from src.agents.llm import get_llm
 from src.agents.state import AgentState
 from src.data_sources import get_default_registry
 from src.utils.logger import logger
@@ -174,33 +176,11 @@ async def followup_node(state: AgentState) -> dict:
     messages_list = messages if isinstance(messages, list) else []
     conversation_history = _format_conversation_history(messages_list)
 
-    system_prompt = f"""you are a helpful political research assistant answering follow-up questions.
-
-you have access to these tools:
-1. search_left - search left-leaning news sources (The Guardian, NYT)
-2. search_right - search right-leaning news sources (NY Post, NewsAPI)
-3. done - provide your final answer
-
-previous report context:
-{report_context}
-
-conversation history:
-{conversation_history}
-
-guidelines:
-- if the question can be answered from the report context, answer directly using "done"
-- if you need more information, search left and/or right sources
-- provide balanced answers citing both perspectives when relevant
-- be concise but thorough
-- cite sources when providing new information
-- you can call search tools multiple times with different queries
-- max {MAX_TOOL_CALLS} tool calls allowed
-
-respond with a JSON object containing:
-- "tool": one of "search_left", "search_right", or "done"
-- "query": search query if using search tools (null for done)
-- "answer": your final answer if using done (null otherwise)
-- "reasoning": brief explanation of your choice"""
+    system_prompt = FOLLOWUP_SYSTEM_PROMPT.format(
+        report_context=report_context,
+        conversation_history=conversation_history,
+        MAX_TOOL_CALLS=MAX_TOOL_CALLS,
+    )
 
     chat_messages = [
         SystemMessage(content=system_prompt),
@@ -210,6 +190,7 @@ respond with a JSON object containing:
     tool_calls_made = 0
     search_results: list[str] = []
     all_citations: list[dict] = []
+    llm = get_llm(model=get_model("followup"))
     structured_llm = llm.with_structured_output(ToolCall)
 
     while tool_calls_made < MAX_TOOL_CALLS:
@@ -297,17 +278,16 @@ respond with a JSON object containing:
         f"max tool calls ({MAX_TOOL_CALLS}) reached, generating final answer...",
     )
 
-    final_prompt = f"""based on all the information gathered, provide a final answer to the user's question.
-
-user question: {query}
-
-search results gathered:
-{chr(10).join(search_results) if search_results else "No additional searches performed."}
-
-provide a concise, balanced answer citing relevant sources."""
+    final_prompt = FOLLOWUP_FINAL_PROMPT.format(
+        query=query,
+        search_results=chr(10).join(search_results)
+        if search_results
+        else "No additional searches performed.",
+    )
 
     try:
-        response = await llm.ainvoke([HumanMessage(content=final_prompt)])
+        llm_final = get_llm(model=get_model("followup"))
+        response = await llm_final.ainvoke([HumanMessage(content=final_prompt)])
         content = response.content if hasattr(response, "content") else str(response)
         answer = content if isinstance(content, str) else str(content)
 
