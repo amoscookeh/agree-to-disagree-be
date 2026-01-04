@@ -13,7 +13,7 @@ MODELS = {
 
 
 def get_model(node_name: str) -> str:
-    return MODELS.get(node_name, "openai/gpt-5-mini")
+    return MODELS.get(node_name, "google/gemini-2.5-flash")
 
 
 __all__ = ["MODELS", "get_model"]
