@@ -1,0 +1,27 @@
+"""centralized prompts for the research agent system"""
+
+from prompts.clarification import CLARIFICATION_PROMPT
+from prompts.classification import CLASSIFICATION_PROMPT
+from prompts.evaluators import BALANCE_PROMPT, CITATION_PROMPT, GROUNDEDNESS_PROMPT
+from prompts.followup import FOLLOWUP_FINAL_PROMPT, FOLLOWUP_SYSTEM_PROMPT
+from prompts.sub_research import DRAFT_SYNTHESIS_PROMPT, SUB_RESEARCH_SYSTEM_PROMPT
+from prompts.supervisor import SUPERVISOR_INITIAL_PROMPT, SUPERVISOR_REVIEW_PROMPT
+from prompts.synthesis import SYNTHESIS_FROM_DRAFTS_PROMPT
+
+PROMPT_VERSION = "1.0.0"
+
+__all__ = [
+    "PROMPT_VERSION",
+    "CLARIFICATION_PROMPT",
+    "CLASSIFICATION_PROMPT",
+    "SUPERVISOR_INITIAL_PROMPT",
+    "SUPERVISOR_REVIEW_PROMPT",
+    "SUB_RESEARCH_SYSTEM_PROMPT",
+    "DRAFT_SYNTHESIS_PROMPT",
+    "SYNTHESIS_FROM_DRAFTS_PROMPT",
+    "FOLLOWUP_SYSTEM_PROMPT",
+    "FOLLOWUP_FINAL_PROMPT",
+    "BALANCE_PROMPT",
+    "GROUNDEDNESS_PROMPT",
+    "CITATION_PROMPT",
+]

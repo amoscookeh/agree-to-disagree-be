@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from src.agents.llm import llm
-from src.agents.prompts import CLARIFICATION_PROMPT
+from prompts import CLARIFICATION_PROMPT
+from prompts.models import get_model
+from src.agents.llm import get_llm
 from src.agents.state import AgentState
 from src.utils.logger import logger
 
@@ -109,6 +110,7 @@ async def clarification_node(state: AgentState) -> dict:
     )
 
     try:
+        llm = get_llm(model=get_model("clarification"))
         structured_llm = llm.with_structured_output(ClarificationAnalysis)
 
         prompt = CLARIFICATION_PROMPT.format(query=query)

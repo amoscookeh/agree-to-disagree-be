@@ -7,6 +7,8 @@ from langchain_core.tools import tool
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
+from prompts import DRAFT_SYNTHESIS_PROMPT, SUB_RESEARCH_SYSTEM_PROMPT
+from prompts.models import get_model
 from src.agents.llm import get_llm
 from src.agents.state import AgentState, Draft, SubQuery
 from src.data_sources import get_default_registry, search_result_to_dict
@@ -103,26 +105,6 @@ async def search_news_sources(query: str, lean: str = "both") -> str:
     return "\n\n".join(formatted)
 
 
-DRAFT_SYNTHESIS_PROMPT = """you are synthesizing research results for a specific sub-query.
-
-sub-query: {sub_query}
-angle: {angle}
-
-{sources_section}
-
-create a brief synthesis covering:
-1. main findings from the sources
-2. key points relevant to the sub-query
-3. any notable perspectives or disagreements found
-
-respond with:
-- summary: a 2-3 sentence synthesis of findings
-- key_findings: 2-4 bullet points of important findings
-- left_perspective: (if applicable) what left-leaning sources emphasized
-- right_perspective: (if applicable) what right-leaning sources emphasized
-"""
-
-
 def _emit_progress(
     writer, agent: str, status: str, message: str, details: dict | None = None
 ):
@@ -217,7 +199,7 @@ async def _research_single_query(
             tools.append(search_google)
 
         # create llm with tools
-        llm_instance = get_llm(temperature=0.5)
+        llm_instance = get_llm(model=get_model("sub_research_tools"), temperature=0.5)
         llm_with_tools = llm_instance.bind_tools(tools)
 
         # create callback for progress tracking
@@ -229,22 +211,11 @@ async def _research_single_query(
             "both": "both perspectives equally",
         }
 
-        system_prompt = f"""you are researching a specific aspect of a political topic.
-
-sub-query: {sq_query}
-angle: {sq_angle} (focus on {angle_desc.get(sq_angle, "both perspectives")})
-
-you have these tools:
-- search_news_sources: search left/right-leaning news for articles
-- search_google: search google for stats, studies, or additional sources
-
-strategy:
-1. first search news sources for the relevant perspective
-2. if news sources lack specific statistics or numbers, use google search
-3. if news sources return few results (<3), supplement with google search
-4. compile findings into a summary
-
-focus on finding concrete evidence and citations."""
+        system_prompt = SUB_RESEARCH_SYSTEM_PROMPT.format(
+            sq_query=sq_query,
+            sq_angle=sq_angle,
+            angle_desc=angle_desc.get(sq_angle, "both perspectives"),
+        )
 
         messages = [
             SystemMessage(content=system_prompt),
@@ -347,7 +318,8 @@ focus on finding concrete evidence and citations."""
             sub_query=sq_query, angle=sq_angle, sources_section=sources_section
         )
 
-        structured_llm = get_llm().with_structured_output(DraftReport)
+        llm = get_llm(model=get_model("sub_research"))
+        structured_llm = llm.with_structured_output(DraftReport)
         result = await structured_llm.ainvoke(prompt)
         draft_report = DraftReport.model_validate(result)
 

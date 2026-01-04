@@ -3,7 +3,8 @@ from datetime import UTC, datetime
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from src.agents.llm import llm
+from prompts.models import get_model
+from src.agents.llm import get_llm
 from src.agents.state import AgentState
 from src.utils.logger import logger
 
@@ -137,35 +138,16 @@ async def classification_node(state: AgentState) -> dict:
     conversation_history = _format_conversation_history(messages_list)
     report_context = _format_report(state)
 
-    prompt = f"""you are a message classifier for a political research assistant.
+    from prompts import CLASSIFICATION_PROMPT
 
-given the conversation history and current message, determine if this is:
-1. "research_prompt" - a new research question requiring full research workflow
-2. "follow_up_question" - a follow-up question about the previous research
-
-conversation history:
-{conversation_history}
-
-{report_context}
-
-current message: {query}
-
-guidelines:
-- if asking about specific details from the report → follow_up_question
-- if asking for clarification or more info on a topic → follow_up_question
-- if introducing a completely new topic → research_prompt
-- if asking to compare or analyze the report → follow_up_question
-- if asking "what about X" where X is related to report → follow_up_question
-
-respond in json format with:
-{{
-    "message_type": "research_prompt" or "follow_up_question",
-    "confidence": 0.0-1.0,
-    "reasoning": "brief explanation of classification"
-}}
-"""
+    prompt = CLASSIFICATION_PROMPT.format(
+        conversation_history=conversation_history,
+        report_context=report_context,
+        query=query,
+    )
 
     try:
+        llm = get_llm(model=get_model("classification"))
         structured_llm = llm.with_structured_output(MessageClassification)
         classification = await structured_llm.ainvoke(prompt)
 
