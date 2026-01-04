@@ -1,26 +1,4 @@
-"""
-evaluator prompts for deepeval metrics
-
-variables for BALANCE_PROMPT:
-- {query}: the query
-- {summary}: report summary
-- {left_title}, {left_stance}, {left_evidence_count}: left perspective details
-- {right_title}, {right_stance}, {right_evidence_count}: right perspective details
-- {agreements_count}, {disagreements_count}, {uncertainties_count}: counts
-
-variables for GROUNDEDNESS_PROMPT:
-- {query}: the query
-- {summary}: report summary
-- {left_claims}: formatted left claims
-- {right_claims}: formatted right claims
-- {sources}: formatted available sources
-
-variables for CITATION_PROMPT:
-- {query}: the query
-- {summary}: report summary
-- {left_evidence}: formatted left evidence with citations
-- {right_evidence}: formatted right evidence with citations
-"""
+"""evaluator prompts for deepeval metrics"""
 
 BALANCE_PROMPT = """evaluate if this political research report fairly represents both perspectives.
 

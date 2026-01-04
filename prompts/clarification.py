@@ -1,9 +1,4 @@
-"""
-clarification node prompts
-
-variables:
-- {query}: the user's original query
-"""
+"""clarification node prompts"""
 
 CLARIFICATION_PROMPT = """you are a query refinement assistant for a political research tool.
 

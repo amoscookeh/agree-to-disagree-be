@@ -1,13 +1,4 @@
-"""
-synthesis node prompts
-
-variables:
-- {query}: the refined query
-- {draft_count}: number of drafts collected
-- {drafts_summary}: formatted summary of all drafts
-- {left_results}: formatted left-leaning sources
-- {right_results}: formatted right-leaning sources
-"""
+"""synthesis node prompts"""
 
 SYNTHESIS_FROM_DRAFTS_PROMPT = """you are a balanced political analyst synthesizing research from multiple drafts.
 

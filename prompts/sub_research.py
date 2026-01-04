@@ -1,16 +1,4 @@
-"""
-sub_research node prompts
-
-variables for SUB_RESEARCH_SYSTEM_PROMPT:
-- {sq_query}: the sub-query text
-- {sq_angle}: the angle (left, right, or both)
-- {angle_desc}: human-readable description of the angle
-
-variables for DRAFT_SYNTHESIS_PROMPT:
-- {sub_query}: the sub-query text
-- {angle}: the angle (left, right, or both)
-- {sources_section}: formatted sources (left, right, google results)
-"""
+"""sub_research node prompts"""
 
 SUB_RESEARCH_SYSTEM_PROMPT = """you are researching a specific aspect of a political topic.
 

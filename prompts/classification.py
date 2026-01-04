@@ -1,11 +1,4 @@
-"""
-classification node prompts
-
-variables:
-- {conversation_history}: formatted conversation history
-- {report_context}: formatted report context
-- {query}: current user message
-"""
+"""classification node prompts"""
 
 CLASSIFICATION_PROMPT = """you are a message classifier for a political research assistant.
 

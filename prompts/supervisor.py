@@ -1,14 +1,4 @@
-"""
-supervisor node prompts
-
-variables for SUPERVISOR_INITIAL_PROMPT:
-- {query}: the refined query
-
-variables for SUPERVISOR_REVIEW_PROMPT:
-- {query}: the refined query
-- {cycle}: current cycle number
-- {drafts_summary}: formatted summary of collected drafts
-"""
+"""supervisor node prompts"""
 
 SUPERVISOR_INITIAL_PROMPT = """you are a research supervisor planning a balanced political investigation.
 

@@ -190,7 +190,9 @@ class TestClarificationNode:
                     suggestions=[],
                 )
             )
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {
@@ -223,7 +225,9 @@ class TestClarificationNode:
                 )
             )
             mock_llm = MagicMock()
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "what are perspectives on healthcare policy"}
@@ -284,7 +288,9 @@ class TestClarificationNode:
             mock_structured_llm.ainvoke = AsyncMock(
                 side_effect=Exception("LLM API error")
             )
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What about healthcare policy in the US?"}
@@ -311,7 +317,9 @@ class TestClarificationNode:
                     suggestions=[],
                 )
             )
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What about healthcare policy in the US?"}
@@ -343,7 +351,9 @@ class TestClarificationNode:
                 )
             )
             mock_llm = MagicMock()
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "what are perspectives on tax policy"}
@@ -371,7 +381,9 @@ class TestClarificationNode:
                 )
             )
             mock_llm = MagicMock()
-            mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
             mock_get_llm.return_value = mock_llm
 
             state: AgentState = {"query": "What are the perspectives on minimum wage?"}

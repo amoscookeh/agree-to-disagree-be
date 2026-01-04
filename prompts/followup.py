@@ -1,15 +1,4 @@
-"""
-followup node prompts
-
-variables for FOLLOWUP_SYSTEM_PROMPT:
-- {report_context}: formatted report context
-- {conversation_history}: formatted conversation history
-- {MAX_TOOL_CALLS}: maximum number of tool calls allowed
-
-variables for FOLLOWUP_FINAL_PROMPT:
-- {query}: the user's question
-- {search_results}: joined search results from all tool calls
-"""
+"""followup node prompts"""
 
 FOLLOWUP_SYSTEM_PROMPT = """you are a helpful political research assistant answering follow-up questions.
 
