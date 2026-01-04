@@ -22,8 +22,10 @@ class TestSupervisorNode:
 
     @pytest.fixture
     def mock_llm(self):
-        with patch("src.agents.nodes.supervisor.llm") as mock:
-            yield mock
+        with patch("src.agents.nodes.supervisor.get_llm") as mock_get_llm:
+            mock_llm = MagicMock()
+            mock_get_llm.return_value = mock_llm
+            yield mock_llm
 
     @pytest.mark.asyncio
     async def test_initial_sub_query_generation(self, mock_stream_writer, mock_llm):
